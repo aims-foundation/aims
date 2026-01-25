@@ -1,0 +1,195 @@
+---
+# title: "Multidimensional Construct"
+format: html
+jupyter: python3
+execute:
+  echo: true      # show code
+  eval: false      # actually run it 
+---
+
+
+# Measurement of Unidimentional Construct {#sec-probabilistic}
+
+<!-- * Data Generating Model (IRT, factor models, SEM).
+
+* Estimation and Identification
+
+* Measurement desiderata for AI: reliability, validity, efficient, decisiong guiding
+
+* AIMS as a unifying framework. 
+
+    \item Truong et al. Reliable and Efficient Amortized Model-based Evaluation.
+    \item Truong et al. Fantastic Bugs and Where to Find Them in AI Benchmarks
+    \item Truong et al. Generalized Neural Scaling Laws via Measurement Theory.
+-->
+
+Data from evaluation comes in many flavors. The most common type is from the correctness signal, typically from a multiple choice questions, an AI judge, or a verifiable mathematical problems. Other is from human preference data. We can represent the result from the evaluation as a response matrix. We next discuss how the data was generated: 
+
+
+![Calibration only need to be done in current models and current datasets. Our approach enables reliable and efficient evaluation of new models and new datasets. (b) and (c) demonstrates the rasch model ](Figures/HELM_data_method.png){#fig-HELM_data_method width="100%"}
+
+
+
+
+$$
+p(Y_{ij} = 1 | U_i, V_j) = \sigma(U_i - V_j)
+$$
+
+$$
+p(Y_{ij} = 1 | U_i, V_j, Z_j) = \sigma(U_i^\top V_j + Z_j)
+$$
+
+$$
+p(Y_{ii'j} = 1 | i, i', j) = \sigma(H_{ij} - H_{i'j})
+$$
+
+
+The first is the **Rasch model** (Rasch, 1993), which posits a single latent ability $U_i$ per model and a single difficulty $V_j$ per question.  
+The second extends to a **multidimensional linear logistic factor model (LLFM)**, where $U_i^\top V_j$ captures structured interactions.  
+The third represents **pairwise preference models** such as Bradley–Terry–Luce, used for human preference data.
+
+
+
+## Implications of the Rasch Model
+
+The Rasch model provides **test-invariant measurement**: ability estimates are invariant to which questions are administered, provided those questions are calibrated.
+
+Under Rasch assumptions:
+- $U_i$ captures model competence across domains.
+- $V_j$ captures intrinsic question difficulty.
+- $\sigma(U_i - V_j)$ provides log-odds interpretability.
+
+These properties make Rasch-style models particularly appealing for **LLM evaluation**, where benchmark subsets differ across studies.
+
+
+
+
+## Estimation and Identification
+
+Estimation proceeds via **marginal maximum likelihood** or **EM** algorithms, alternating between estimating ability and item parameters.
+
+Identifiability is ensured by fixing the latent-ability mean to zero and variance to one.  
+For multidimensional models, **rotation constraints** (e.g., promax/varimax) align factors with interpretable axes.
+
+
+
+## Empirical Estimation via EM
+
+
+We now walk through a **simplified Rasch model** estimated by alternating updates.  
+The code below demonstrates data preparation, initialization, and optimization steps.
+
+
+### load data
+```{python}
+from huggingface_hub import snapshot_download
+local_path = snapshot_download(
+    repo_id="stair-lab/reeval_fa", repo_type="dataset"
+)
+with open(f"{local_path}/data/HELM_benchmark.pkl", "rb") as f:
+    results = pickle.load(f)
+```
+
+This preprocessing ensures that the optimization operates only over valid responses while maintaining a consistent tensor shape.
+
+### Train the model using EM
+
+We randomly mask 20% of the responses as a test set.
+The loop repeats until every test taker and item has at least one observed response in the training set — ensuring model identifiability.
+```{python}
+
+valid_condition = False
+trial = 0
+while not valid_condition:
+    train_idtor = torch.bernoulli(data_idtor * 0.8).int()
+    test_idtor = data_idtor - train_idtor
+    valid_condition = (train_idtor.sum(axis=1) != 0).all() and (train_idtor.sum(axis=0) != 0).all()
+    print(f"trial {trial} valid condition: {valid_condition}")
+    trial += 1
+```
+
+#### Fit Item difficulty $z_j$
+
+This stage estimates item difficulties by fixing a temporary set of ability estimates $ \theta_{\text{nuisance}} $.
+Each batch of questions (size 50k) is optimized using **L-BFGS** to minimize the negative log-likelihood.
+
+The logistic probabilities are given by:
+
+$$
+p(Y_{ij} = 1) = \sigma(\theta_i + z_j)
+$$
+
+
+
+```{python}
+# fit z
+B = 50000
+optimized_zs = []
+thetas_nuisance = torch.randn(150, n_test_takers, device=device)
+for i in tqdm(range(0, n_items, B)):
+    data_batch = data_with0[:, i:i+B]
+    train_idtor_batch = train_idtor[:, i:i+B]
+    current_B = data_batch.shape[1]
+    z_i = torch.randn(current_B, requires_grad=True, device=device)
+    optim_z_i = LBFGS([z_i], lr=0.1, max_iter=20, history_size=10, line_search_fn="strong_wolfe")
+    def closure_z_i():
+        optim_z_i.zero_grad()
+        probs = torch.sigmoid(thetas_nuisance[:, :, None] + z_i[None, None, :])
+        loss = -(Bernoulli(probs=probs).log_prob(data_batch)*train_idtor_batch).mean()
+        loss.backward()
+        return loss
+    z_i_optimized = trainer([z_i], optim_z_i, closure_z_i)[0].detach()
+    optimized_zs.append(z_i_optimized)
+zs = torch.cat(optimized_zs)
+```
+
+#### Fit Model Abilities $\theta_j$
+
+This step optimizes the test takers’ abilities given fixed question difficulties.
+
+```{python}
+# fit theta
+thetas = torch.randn(n_test_takers, requires_grad=True, device=device)
+optim_theta = LBFGS([thetas], lr=0.1, max_iter=20, history_size=10, line_search_fn="strong_wolfe")
+def closure_theta():
+    optim_theta.zero_grad()
+    probs = torch.sigmoid(thetas[:, None] + zs[None, :])
+    loss = -(Bernoulli(probs=probs).log_prob(data_with0)*train_idtor).mean()
+    loss.backward()
+    return loss
+thetas = trainer([thetas], optim_theta, closure_theta)[0]
+```
+
+### Evaluate 
+
+```{python}
+def compute_auc(probs, data, train_idtor, test_idtor):
+    train_probs = probs[train_idtor.bool()]
+    test_probs = probs[test_idtor.bool()]
+    train_labels = data[train_idtor.bool()]
+    test_labels = data[test_idtor.bool()]
+    
+    train_auc = auroc(train_probs, train_labels)
+    test_auc = auroc(test_probs, test_labels)
+    print(f"train auc: {train_auc}")
+    print(f"test auc: {test_auc}")
+    
+    return train_auc, test_auc
+
+# calculate metrics
+probs = torch.sigmoid(thetas[:, None] + zs[None, :])
+
+train_auc, test_auc = compute_auc(probs, data_with0, train_idtor, test_idtor)
+```
+
+## Measurement Desiderata for AI
+
+Reliable AI measurement requires models that are:
+
+- **Reliable** – stable under test-set resampling and adaptive selection.
+- **Valid** – aligned with meaningful latent constructs such as reasoning or safety.
+- **Efficient** – minimizing query and labeling costs.
+- **Decision-guiding** – supporting practical comparison and monitoring across time.
+
+The **AIMS framework** unifies these desiderata by combining Rasch-style probabilistic foundations with amortized inference and adaptive data collection.
+

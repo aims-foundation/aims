@@ -1,0 +1,31 @@
+::: {.content-visible when-format="html"}
+::: {.quarto-title-citeas .csl-entry}
+Truong, S. T., Koyejo, S. 2025. _AI Measurement Science: A Science of Knowing Where AI Thrives, Where It Breaks, and How to Respond_. Stanford University.
+:::
+:::
+
+# The Case for AI Measurement Sciences {#sec-case}
+
+<!-- * Motivation: why evaluation is central to AI progress and safety.
+
+* Limitations of existing benchmarks and leaderboards.
+
+* Analogy to measurement science in psychology, education, and the physical sciences.
+
+* Research questions and contributions of the dissertation. -->
+
+Progress in artificial intelligence depends on knowing what our systems can do, how well they can do it, and under what conditions their behavior changes. Evaluation is therefore not an afterthought to AI development but its epistemic foundation. Every claim of progress—whether about improved reasoning, better alignment, or broader capability—rests on some act of measurement. Yet despite the centrality of evaluation, the field’s tools for measurement remain strikingly underdeveloped. Benchmarks proliferate faster than we can understand them, and leaderboards offer scores without scales, turning scientific assessment into a race of numbers detached from theory.
+
+Contemporary evaluation practice in AI largely relies on finite collections of datasets and metrics—benchmarks that serve as de facto instruments of measurement. These instruments are often designed without formal notions of validity, reliability, or calibration. A model’s average accuracy across a dataset says little about why it succeeds, where it fails, or how its abilities generalize beyond the test. The result is an evaluation ecosystem that produces motion without understanding. Without a coherent measurement framework, we risk mistaking leaderboard ascent for scientific progress.
+
+Other sciences have faced similar crises of interpretation and responded by formalizing the theory of measurement. Psychology turned to psychometrics, developing Item Response Theory (IRT) and latent variable modeling to distinguish true ability from test difficulty. Education systems built statistical foundations for comparing learners across tests, time, and populations. The physical sciences standardized their instruments and units to make measurement traceable and comparable across laboratories. Each of these fields transformed ad hoc evaluation into measurement science—a discipline grounded in inference, uncertainty, and calibration. AI now stands at a similar inflection point.
+
+AI Measurement Sciences (AIMS) seeks to provide this missing foundation. It treats AI evaluation as an inferential problem: given observed responses of models to tasks, what can we infer about their latent capabilities, the properties of the tasks, and the conditions of generalization? It asks how to design evaluation systems that are reliable (stable under sampling and perturbation), valid (measuring intended constructs rather than artifacts), and interpretable (enabling meaningful comparison across time, domains, and model families). The central research questions are therefore not only empirical but epistemological:
+
+* How can we represent and estimate the latent constructs underlying AI performance?
+
+* How can we quantify uncertainty, bias, and contamination in existing evaluation systems?
+
+* What are the statistical and organizational conditions under which measurement becomes trustworthy enough to guide AI development and governance?
+
+This dissertation argues that answering these questions requires a probabilistic science of evaluation—one that unites methods from psychometrics, statistics, and machine learning. The goal is not merely to build better benchmarks but to establish a framework for scientific decision making about AI systems: when to trust, when to doubt, and how to act.

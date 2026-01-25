@@ -1,0 +1,137 @@
+---
+# title: "Dataset"
+format: html
+jupyter: python3
+execute:
+  echo: true      # show code
+  eval: false      # actually run it 
+---
+
+
+
+<!-- # Dataset we worked with -->
+
+<!-- * Data Generating Model (IRT, factor models, SEM).
+
+* Estimation and Identification
+
+* Measurement desiderata for AI: reliability, validity, efficient, decisiong guiding
+
+* AIMS as a unifying framework. 
+
+    \item Truong et al. Reliable and Efficient Amortized Model-based Evaluation.
+    \item Truong et al. Fantastic Bugs and Where to Find Them in AI Benchmarks
+    \item Truong et al. Generalized Neural Scaling Laws via Measurement Theory.
+-->
+
+# Dataset Description
+
+We work with several large-scale evaluation corpora that represent distinct yet complementary perspectives on measuring model behavior: **HELM**, the **Open LLM Leaderboard** , 
+
+
+
+## HELM Benchmark Suite
+
+We use **22 datasets** drawn from **5 HELM repositories** — *Classic*, *Lite*, *AIR-Bench*, *Thai Exam*, and *MMLU* — encompassing both *capability* and *safety* measurements.  
+In total, this collection includes **172 test takers** and **217,268 questions**.
+
+We focus on responses that can be graded *dichotomously* (correct/incorrect), as is the case for most benchmarks through metrics such as *exact match* or *equivalent indicator*.  
+To ensure stable estimation, we apply the following preprocessing steps:
+
+- Remove **duplicate questions**, those with **identical response patterns**, or with fewer than **30 test takers**.  
+- Exclude **test takers** with fewer than **30 total responses**.  
+- Treat unattempted questions as **missing values**, which are masked out during likelihood computation.
+
+```{python}
+from huggingface_hub import snapshot_download
+local_path = snapshot_download(
+    repo_id="stair-lab/reeval_fa", repo_type="dataset"
+)
+with open(f"{local_path}/data/HELM_benchmark.pkl", "rb") as f:
+    results = pickle.load(f)
+
+```
+
+
+![Visualization of HELM Dataset](Figures/HELM_response_matrix.png){#fig-HELM_response_matrix width="100%"}
+
+
+
+## Open LLM Leaderboard
+We also use data from the **Open LLM Leaderboard** (Hugging Face, 2025), a public benchmarking platform that evaluates open large language models on a standardized suite of academic and practical tasks to track their progress over time.
+
+The dataset spans models submitted between **2022 and 2025**, covering parameter scales from **small models (<5B parameters)** to **frontier systems (>140B parameters)**.  
+In total, it includes **4,416 distinct language models**, each evaluated on **21,176 benchmark questions**.
+
+The questions originate from **six widely used evaluation suites**:
+- **MMLU-Pro** – professional-level multi-task language understanding,  
+- **OpenLLM-Math** – mathematical reasoning,  
+- **MUSR** – multi-step reasoning,  
+- **BBH** – Big-Bench Hard,  
+- **IFEval** – instruction-following evaluation, and  
+- **GPQA** – graduate-level problem solving and question answering.
+
+The leaderboard data are **complete**, with no missing entries.  
+For quality control, we remove **questions with mean accuracy ≤ 0.01 or ≥ 0.99** across models, which helps exclude degenerate items that are either too easy or too difficult.  
+
+```{python}
+from huggingface_hub import snapshot_download
+local_path = snapshot_download(repo_id="stair-lab/reeval_fa", repo_type="dataset")
+with open(f"{local_path}/data/benchmark_data_open_llm_full_no_arc.pkl", "rb") as f:
+    results = pickle.load(f)
+
+```
+
+
+
+![Visualization of Open LLM Dataset](Figures/open_llm_response_matrix.png){#fig-open_llm_response_matrix width="100%"}
+
+
+
+
+## LMarena Preference Data 
+
+In addition to correctness-based evaluation, we incorporate **pairwise preference data** from the **LMarena dataset** ([Hugging Face, 2025](https://huggingface.co/lmarena-ai/datasets)), which provides human or automated judgments of relative model quality.
+
+Each example corresponds to a **prompt** presented to two competing models, *A* and *B*, with an annotation indicating which model’s response is preferred.  
+This setup supports a **pairwise preference modeling** framework analogous to the **Bradley–Terry–Luce (BTL)** model:
+
+$$
+p(\text{A preferred over B}) = \sigma(H_A - H_B)
+$$
+
+where \(H_A\) and \(H_B\) represent the latent performance of each model under the same prompt.  
+Higher values of \(H_A - H_B\) correspond to a stronger likelihood that model A’s response is preferred.
+
+The dataset includes:
+
+- **211,728 unique prompts**  
+- **3,779 unique model pairs**  
+- **179 distinct models** in total
+
+These preference judgments provide a complementary view of model quality, focusing on *relative comparisons* rather than absolute correctness.  
+By integrating this data with HELM and the Open LLM Leaderboard, we can jointly model both **objective accuracy** and **subjective preference**, enabling a unified latent factor representation of model performance.
+
+
+
+
+
+
+## Agent Leaderboard
+
+We further include **Agent Leaderboard data** ([Hugging Face Space](https://huggingface.co/spaces/galileo-ai/agent-leaderboard/tree/main)), developed by **Galileo AI**, which evaluates the *agentic performance* of large language models across a variety of tool-use and reasoning scenarios.
+
+This dataset contains approximately **34,700 rows**, where each row corresponds to a single question, the model’s generated response, and a numerical **score** judged by GPT-4.  
+When the score equals **1**, the model’s response is considered *correct* or *successful*; when the score equals **0**, it is considered *incorrect*.  
+Intermediate scores such as **0.33** or **0.67** indicate *partial correctness* or *low-confidence judgments* by GPT-4.
+
+The evaluation covers **multiple agentic subjects**, each consisting of roughly **100 questions**, and includes approximately **40 distinct models**, ranging from *Gemini-2.5*, *Claude-3.5*, *GPT-4.1/4.5*, *Llama-4*, *Qwen-2.5*, *DeepSeek-V3*, and other, totaling 33.
+
+This dataset provides a unique perspective on **agentic reasoning and tool-use capabilities**, complementing HELM’s standardized benchmarks, the Open LLM Leaderboard’s academic tasks, and LMarena’s human preference judgments.  
+Together, these four sources enable unified modeling of *accuracy*, *preference*, and *agency* within a shared latent-factor evaluation framework.
+
+
+
+
+
+

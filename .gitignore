@@ -1,0 +1,84 @@
+# R
+.Rproj.user
+.Rhistory
+.RData
+.Ruserdata
+
+.vscode
+.Rbuildignore
+
+.DS_Store
+
+# Quarto build outputs
+_book/
+_freeze/
+_site/
+_slides/
+/.quarto/
+*_cache/
+
+# Jupyter cache
+.jupyter_cache/
+src/.jupyter_cache/
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+venv/
+
+# Editor
+*.sublime-project
+*.swp
+*~
+~$*
+
+# Project-specific
+images/management/analysis_pipeline.pptx
+images/management/analysis_pipeline.pdf
+*.xls
+*.html
+*.docx
+/_site/
+*_files/
+/_extensions/
+
+# LaTeX intermediates
+*.blg
+*.log
+*.toc
+*.aux
+*.tex
+*.pdf
+*.idx
+*.ilg
+*.ind
+*.lock
+*.ipynb
+*.out
+*.bbl
+*.synctex.gz
+
+/src/.jupyter_cache
+
+**/*.quarto_ipynb
+
+# Build output libs
+site_libs/
+
+# R environment (renv)
+renv/library/
+renv/staging/
+renv/python/
+
+# IDE / project files
+.idea/
+*.Rproj
+.Rbuildignore
+
+# Claude Code config
+CLAUDE.md
+.claude/
+.claude.json
+.claude.json.backup

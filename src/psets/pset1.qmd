@@ -1,0 +1,375 @@
+## Exercises
+
+### Question 4: Direct Preference Optimization (40 points) {#question-4-direct-preference-optimization-40-points .unnumbered}
+
+Note this question requires a GPU which is provided for free on Google
+Colab (T4 instance) or through the course cloud credits provided on Ed.\
+Direct Preference Optimization (DPO) allows for policy alignment on a
+preference dataset without the need to train a separate reward model.
+The preference dataset is constructed by sampling generations
+$(y_1, y_2)\sim \pi_{\text{ref}}(\cdot\mid x)$ where $\pi_\text{ref}$ is
+the base policy to be aligned, and $x$ comes from a set of previously
+collected prompts. The pairs of generations are then labeled by an
+annotator for which of the generations is preferred. Denote the
+preference dataset by
+$\mathcal{D}=\left\{\left(x^{(i)}, y_+^{(i)}, y_-^{(i)}\right)\right\}_{i=1}^N$,
+where $y_+$ and $y_-$ are the preferred and non-preferred generations,
+respectively. DPO aims to solve the following:
+$$\hat{\pi}=\arg \min_{\pi\in\Pi}\mathbb{E}_{(x, y_+, y_-)\sim\mathcal{D}}\left[-\log\sigma\left(
+\beta\log\left(\frac{\pi(y_+ | x)}{\pi_{\text{ref}}(y_+ | x)}\right)-\beta\log\left(\frac{\pi(y_- | x)}{\pi_{\text{ref}}(y_- | x)}\right)\right)\right]$$
+where $\Pi$ is the space of possible polices $\pi$ can take on. $\pi$ is
+typically parametrized.
+
+(a) **(Written, 6 points)**. Consider the setting where
+    $\pi_{\text{ref}}$ has no conditioning features and randomly outputs
+    one of two possible values, $\mathbf{A}$ or $\mathbf{B}$ (also known
+    as the "Bandit" setting). Suppose that
+    $\pi_{\text{ref}}(\mathbf{A})=p_0$ and
+    $\pi_{\text{ref}}(\mathbf{B})=1-p_0$. Furthermore, assume that the
+    preference dataset $\mathcal{D}$ is infinitely large, sampled from
+    $\pi_{\text{ref}}$, and that the preferred response is selected
+    through a Bradley-Terry reward model where $\mathbf{A}$ has reward
+    score $r_A$ and $\mathbf{B}$ has reward score $r_B$. Set
+    $\Pi=\{\pi_p\mid 0<p<1\}$ where $\pi_p$ is the policy defined by
+    $\pi_p(\mathbf{A})=p$ and $\pi_p(\mathbf{B})=1-p$. The DPO objective
+    is to compute:
+    $$\pi_{\hat{p}}=\arg \min_{\pi_p\in \Pi} f(p, p_0, \beta, r_A, r_B),$$
+    for a function $f$. Find $f$ by explicitly computing the relevant
+    expectation.
+
+(b) **(Written, 8 points)**. Assume that a solution to the optimization
+    problem in part (a) exists. Find an expression for $\hat{p}$. (Hint:
+    Make sure to know your sigmoid derivative properties! Everything
+    should simplify nicely. You may use the [*logit function*](https://en.wikipedia.org/wiki/Logit) denoted by $\sigma^{-1}$ in
+    your final expression.)
+
+(c) **(Written, 3 points)**. Show that
+    $\lim_{\beta\to\infty}\hat{p}=p_0.$ (Very) briefly explain why this
+    makes sense intuitively based on the role of $\beta$ in
+    KL-constrained reward optimization (we suggest two sentences).
+
+(d) **(Written, 3 points)**. Assume $r_A=r_B$ and $\beta>0$. Notice that
+    $\hat{p}=p_0$. Briefly explain why this makes sense intuitively (we
+    suggest two sentences).
+
+Next, you will fine-tune the lightweight 2 billion parameter Gemma 2
+model on the DPO objective. We will use the instruction fine-tuned
+variant of the model (i.e., designed for chat-based interactions).
+
+1.  **(Coding, 4 points)**. Open the `dpo/dpo.ipynb` file of the PSET's
+    codebase. Execute the first few cells of the notebook until you see
+    the `sample_chat_tokens` and their IDs printed out. The next cell
+    requires you to implement the `get_response_idxs` function in
+    `dpo/dpo.py`.
+
+    To implement it, you must find the indices of the first and last
+    token of the model's response in `sample_chat_tokens`. In the
+    notebook's example, this corresponds to the tokens "As" and "."
+
+2.  **(Coding, 4 points)**. The following cell asks you to implement the
+    `get_response_next_token_probs` function. The next token logits for
+    each token of the chat prompt are provided. Pass them through the
+    softmax function and appropriately index the next token IDs.
+
+        <bos><start_of_turn>user
+        Where are you?<end_of_turn>
+        <start_of_turn>model
+        I am here.<end_of_turn>
+
+    In the example above, we look for the next-token probabilities of
+    "I", "am", "here", and "." To do so, you must extract the logits for
+    "\\n", "I", "am", and "here" because the probability of generating a
+    given token comes from the prediction of the token before. Use the
+    return value of `get_response_idxs` as anchor points for indexing.
+    Be careful of off-by-one indexing mistakes!
+
+3.  **(Coding, 6 points)**. The training and reference LLM policies are
+    loaded for you. We load the training policy in with LoRA for
+    computational efficiency during fine-tuning in the next part.
+    Implement `compute_dpo_objective` with the objective provided in the
+    theory portion for your favorite positive value of $\beta$. Does
+    $\beta$ affect the loss printed out? Why or why not? You do not need
+    to write why in your submission, but this line of thinking will help
+    debug any issues with your DPO loss function.
+
+4.  **(Written + Coding, 6 points)**. Finally, you will fine-tune the
+    Gemma model on the DPO loss function with batch size (and dataset
+    size) of $1$ by implementing `finetune`. The prompt and completions
+    are provided in the notebook. The optimizer, $\beta$, and the number
+    of fine-tuning steps have also been provided. Make sure to use
+    `torch.no_grad()` on the reference model to prevent unnecessary
+    gradients!
+
+    Report the proportion of "because of" occurences before and after
+    fine-tuning. Additionally, include a plot of the DPO loss curve.
+
+::: {.callout-note title="code"}
+```{python ex1-q4}
+import torch
+from transformers import AutoTokenizer, AutoModelForCausalLM, set_seed
+from peft import LoraConfig, get_peft_model
+
+set_seed(42) # DO NOT CHANGE THE SEED
+
+def get_response_idxs(tokenizer, chat_token_ids):
+    """
+    Finds the start and end indices of the response in the tokenized chat.
+
+    Args:
+    tokenizer: The tokenizer object used to encode/decode text.
+    chat_token_ids (list[int]): The token IDs representing the chat conversation.
+
+    Returns:
+    tuple: A tuple (response_start_idx, response_end_idx), both of which are nonnegative integers.
+    """
+
+    start_of_turn_id = tokenizer.convert_tokens_to_ids("<start_of_turn>")
+    end_of_turn_id = tokenizer.convert_tokens_to_ids("<end_of_turn>")
+
+    response_start_idx = None # Nonnegative integer
+    response_end_idx = None # Nonnegative integer
+
+    # YOUR CODE HERE (~3-5 lines)
+    pass
+    # END OF YOUR CODE
+
+    return response_start_idx, response_end_idx
+
+def get_response_next_token_probs(tokenizer, model, chat_token_ids):
+    """
+    Computes the next token probabilities for the response in a chat.
+
+    Args:
+    tokenizer: The tokenizer object used to encode/decode text.
+    model: The language model used to generate the logits.
+    chat_token_ids (list[int]): The token IDs representing the chat conversation.
+
+    Returns:
+    torch.Tensor: A 1D tensor containing the probabilities of the tokens in the response found by appropriately indexing
+                  the next token probabilities of the preceding token.
+    """
+
+    response_start_idx, response_end_idx = get_response_idxs(tokenizer, chat_token_ids)
+    chat_token_ids_tensor = torch.tensor([chat_token_ids]).to(model.device)
+    logits = model(chat_token_ids_tensor).logits[0, :, :] # shape (len(chat_token_ids), vocabulary_size)
+
+    next_token_probs = None # Should be a 1D-tensor
+
+    # YOUR CODE HERE (~3-5 lines)
+    pass
+    # END OF YOUR CODE
+
+    return next_token_probs
+
+def compute_dpo_objective(preferred_train_probs, nonpreferred_train_probs, preferred_ref_probs, nonpreferred_ref_probs, beta):
+    """
+    Computes the Direct Preference Optimization (DPO) objective for training.
+
+    Args:
+    preferred_train_probs (torch.Tensor): Token probabilities for the preferred chat sequence from the training model.
+    nonpreferred_train_probs (torch.Tensor): Token probabilities for the non-preferred chat sequence from the training model.
+    preferred_ref_probs (torch.Tensor): Token probabilities for the preferred chat sequence from the reference model.
+    nonpreferred_ref_probs (torch.Tensor): Token probabilities for the non-preferred chat sequence from the reference model.
+    beta (float): Controls the KL strength of staying close to the reference model.
+
+    Returns:
+    torch.Tensor: The computed DPO objective, which is a float.
+    """
+
+    dpo_obj = None # Float value
+    
+    # YOUR CODE HERE (~4-6 lines)
+    pass
+    # END OF YOUR CODE
+
+    return dpo_obj
+
+def finetune(tokenizer, optimizer, train_model, ref_model, preferred_chat_ids, nonpreferred_chat_ids, num_gradient_steps, beta):
+    """
+    Fine-tunes the training model using DPO. Make sure to disable gradients on the reference model!
+
+    Args:
+    tokenizer: The tokenizer object used to encode/decode text.
+    optimizer: The optimizer for updating the training model's parameters.
+    train_model: The model being fine-tuned.
+    ref_model: The reference model.
+    preferred_chat_ids (list[int]): The token IDs representing the preferred chat sequence.
+    nonpreferred_chat_ids (list[int]): The token IDs representing the non-preferred chat sequence.
+    num_gradient_steps (int): The number of gradient updates to perform.
+    beta (float): A parameter used in computing the DPO objective.
+
+    Returns:
+    None
+    """
+
+    print('Fine-tuning...')
+    for i in range(num_gradient_steps):
+        # YOUR CODE HERE (~9-12 lines)
+        pass
+        # END OF YOUR CODE
+    print("Fine-tuning complete!")
+
+# DO NOT CHANGE!
+def sample_model(tokenizer, model, prompt, N=100):
+    """
+    Samples N different completions from the model based on the given prompt.
+
+    Args:
+    tokenizer: The tokenizer object used to encode/decode text.
+    model: The language model used for generation.
+    prompt (str): The input prompt for which completions will be generated.
+    N (int): The number of completions to generate.
+
+    Returns:
+    list[str]: A list of N generated completions.
+    """
+
+    chat = [{"role": "user", "content": prompt}]
+    chat_tokens = tokenizer.apply_chat_template(chat, tokenize=True, add_generation_prompt=True)
+
+    # Generate N different responses
+    outputs = model.generate(
+        torch.tensor([chat_tokens], device=model.device),
+        num_return_sequences=N,
+        max_new_tokens=32,
+        temperature=0.15,
+        top_k=50,
+        top_p=0.95,
+        do_sample=True
+    )
+
+    def extract_response(decoded_text):
+        return decoded_text.rsplit('model\n', 1)[-1][:-2]
+
+    responses = [extract_response(tokenizer.decode(output, skip_special_tokens=True)) for output in outputs]
+    return responses
+
+# DO NOT CHANGE!
+def fraction_responses_with_because_of(responses):
+    """
+    Calculates the fraction of responses that start with a specific match string.
+
+    Args:
+    responses (list[str]): A list of model-generated responses.
+
+    Returns:
+    float: The fraction of responses that start with the phrase "The sky appears blue because of".
+    """
+
+    match_str = "The sky appears blue because of"
+    match_count = 0
+
+    for response in responses:
+        if response.startswith(match_str):
+            match_count += 1
+
+    return match_count / len(responses)
+
+
+if __name__ == '__main__':
+    model = AutoModelForCausalLM.from_pretrained(
+        "google/gemma-2-2b-it",
+        torch_dtype=torch.bfloat16,
+        device_map='auto'
+    )
+    tokenizer = AutoTokenizer.from_pretrained("google/gemma-2-2b-it")
+
+    sample_prompt = "How is it going?"
+    sample_completion = "As an AI, I don't have feelings or experiences like humans do, so I don't have a \"going\" in the same way."
+
+    sample_chat = [
+        {"role": "user", "content": sample_prompt},
+        {"role": "assistant", "content": sample_completion}
+    ]
+
+    sample_chat_tokens = tokenizer.apply_chat_template(sample_chat, tokenize=False, add_generation_prompt=False)
+    sample_chat_token_ids = tokenizer.apply_chat_template(sample_chat, tokenize=True, add_generation_prompt=False)
+
+    print("Chat tokens:")
+    print(sample_chat_tokens)
+
+    print("Chat token IDs:")
+    print(sample_chat_token_ids)
+
+    response_start_idx, response_end_idx = get_response_idxs(tokenizer, sample_chat_token_ids)
+    print(f"Response tokens index in sample_chat_tokens range from {response_start_idx} to {response_end_idx}.")
+
+    first_response_token_id = sample_chat_token_ids[response_start_idx]
+    last_response_token_id = sample_chat_token_ids[response_end_idx]
+    print(f'First response token is "{tokenizer.decode(first_response_token_id)}" with ID {first_response_token_id}')
+    print(f'Last response token is "{tokenizer.decode(last_response_token_id)}" with ID {last_response_token_id}')
+
+    # Make sure your code passes this test!
+    assert tokenizer.decode(first_response_token_id) == "As" and tokenizer.decode(last_response_token_id) == "."
+
+    with torch.no_grad():
+        next_token_probs = get_response_next_token_probs(tokenizer, model, sample_chat_token_ids)
+    print(f'Next token probabilities: {next_token_probs}')
+
+    # Make sure your code passes this test!
+    assert next_token_probs.mean() > 0.7
+
+    train_model = AutoModelForCausalLM.from_pretrained(
+        "google/gemma-2-2b-it",
+        torch_dtype=torch.bfloat16,
+        device_map='auto'
+    )
+    lora_config = LoraConfig()
+    train_model = get_peft_model(train_model, lora_config)
+    train_model.train()
+
+    ref_model = model
+    ref_model.train()
+    print('Loaded models!')
+
+    # The model's response to the prompt usually includes the words "due to" - we want to change that to "because of" using DPO!
+    prompt = "Explain why the sky is blue in one sentence."
+    preferred_completion = "The sky appears blue because of"
+    nonpreferred_completion = "The sky appears blue due to"
+
+    preferred_chat = [
+        {"role": "user", "content": prompt},
+        {"role": "assistant", "content": preferred_completion}
+    ]
+
+    nonpreferred_chat = [
+        {"role": "user", "content": prompt},
+        {"role": "assistant", "content": nonpreferred_completion}
+    ]
+
+    preferred_chat_ids = tokenizer.apply_chat_template(preferred_chat, tokenize=True, add_generation_prompt=False)
+    nonpreferred_chat_ids = tokenizer.apply_chat_template(nonpreferred_chat, tokenize=True, add_generation_prompt=False)
+
+    preferred_train_probs = get_response_next_token_probs(tokenizer, train_model, preferred_chat_ids)
+    nonpreferred_train_probs = get_response_next_token_probs(tokenizer, train_model, nonpreferred_chat_ids)
+
+    # Gradients are not needed for the reference model since we will not be optimizing with respect to it
+    with torch.no_grad():
+        preferred_ref_probs = get_response_next_token_probs(tokenizer, ref_model, preferred_chat_ids)
+        nonpreferred_ref_probs = get_response_next_token_probs(tokenizer, ref_model, nonpreferred_chat_ids)
+
+    your_favorite_beta = 1.0 # Feel free to play with beta here. Does anything change?
+    dpo_obj = compute_dpo_objective(preferred_train_probs, nonpreferred_train_probs, preferred_ref_probs, nonpreferred_ref_probs, beta=your_favorite_beta)
+    print(dpo_obj)
+
+    prior_responses = sample_model(tokenizer, train_model, prompt)
+    print('Sampled responses before fine-tuning:\n' + '\n'.join(prior_responses[:10]))
+    print(f'Fraction responses with because of: {fraction_responses_with_because_of(prior_responses)}') # should start close to 0
+
+    # DO NOT CHANGE THESE VALUES
+    num_gradient_steps = 150 
+    learning_rate = 2e-6
+    beta = 1
+    optimizer = torch.optim.Adam(train_model.parameters(), lr=learning_rate)
+
+    finetune(tokenizer, optimizer, train_model, ref_model, preferred_chat_ids, nonpreferred_chat_ids, num_gradient_steps, beta)
+
+    # Save GPU memory
+    del ref_model
+    del model
+
+    post_tuning_responses = sample_model(tokenizer, train_model, prompt)
+    print('Sampled responses after fine-tuning:\n' + '\n'.join(post_tuning_responses[:10]))
+    print(f'Fraction responses with because of: {fraction_responses_with_because_of(post_tuning_responses)}') # should be more than half
+```
+:::
