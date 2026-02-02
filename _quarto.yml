@@ -117,9 +117,9 @@ book:
   subtitle: "A Science of Knowing Where AI Thrives, Where It Breaks, and How to Respond"
   author:
     - name: Sang T. Truong
-      # orcid: 0000-0002-7551-4378
+      orcid: 0000-0002-7551-4378
     - name: Sanmi Koyejo
-      # orcid: 0000-0001-9039-3220
+      orcid: 0000-0001-9039-3220
     
   date: last-modified
   repo-url: https://github.com/sangttruong/aims
@@ -137,8 +137,3 @@ book:
     - src/chap3.qmd
     - src/chap4.qmd
     - src/chap5.qmd
-    # - src/chap6.qmd
-    # - src/chap7.qmd
-    # - src/chap8.qmd
-    # - src/ack.qmd
-    # - 5-conclusion.qmd  # File doesn't exist yet

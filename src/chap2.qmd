@@ -1,5 +1,5 @@
 ---
-# title: "Dataset"
+title: "Learning"
 format: html
 jupyter: python3
 execute:
@@ -7,41 +7,64 @@ execute:
   eval: false      # actually run it 
 ---
 
+Data from evaluation comes in many flavors. The most common type is from the correctness signal, typically from a multiple choice questions, an AI judge, or a verifiable mathematical problems. Other is from human preference data. We can represent the result from the evaluation as a response matrix. We next discuss how the data was generated: 
 
 
-<!-- # Dataset we worked with -->
-
-<!-- * Data Generating Model (IRT, factor models, SEM).
-
-* Estimation and Identification
-
-* Measurement desiderata for AI: reliability, validity, efficient, decisiong guiding
-
-* AIMS as a unifying framework. 
-
-    \item Truong et al. Reliable and Efficient Amortized Model-based Evaluation.
-    \item Truong et al. Fantastic Bugs and Where to Find Them in AI Benchmarks
-    \item Truong et al. Generalized Neural Scaling Laws via Measurement Theory.
--->
-
-# Dataset Description
-
-We work with several large-scale evaluation corpora that represent distinct yet complementary perspectives on measuring model behavior: **HELM**, the **Open LLM Leaderboard** , 
+![Calibration only need to be done in current models and current datasets. Our approach enables reliable and efficient evaluation of new models and new datasets. (b) and (c) demonstrates the rasch model ](Figures/HELM_data_method.png){#fig-HELM_data_method width="100%"}
 
 
 
-## HELM Benchmark Suite
 
-We use **22 datasets** drawn from **5 HELM repositories** — *Classic*, *Lite*, *AIR-Bench*, *Thai Exam*, and *MMLU* — encompassing both *capability* and *safety* measurements.  
-In total, this collection includes **172 test takers** and **217,268 questions**.
+$$
+p(Y_{ij} = 1 | U_i, V_j) = \sigma(U_i - V_j)
+$$
 
-We focus on responses that can be graded *dichotomously* (correct/incorrect), as is the case for most benchmarks through metrics such as *exact match* or *equivalent indicator*.  
-To ensure stable estimation, we apply the following preprocessing steps:
+$$
+p(Y_{ij} = 1 | U_i, V_j, Z_j) = \sigma(U_i^\top V_j + Z_j)
+$$
 
-- Remove **duplicate questions**, those with **identical response patterns**, or with fewer than **30 test takers**.  
-- Exclude **test takers** with fewer than **30 total responses**.  
-- Treat unattempted questions as **missing values**, which are masked out during likelihood computation.
+$$
+p(Y_{ii'j} = 1 | i, i', j) = \sigma(H_{ij} - H_{i'j})
+$$
 
+
+The first is the **Rasch model** (Rasch, 1993), which posits a single latent ability $U_i$ per model and a single difficulty $V_j$ per question.  
+The second extends to a **multidimensional linear logistic factor model (LLFM)**, where $U_i^\top V_j$ captures structured interactions.  
+The third represents **pairwise preference models** such as Bradley–Terry–Luce, used for human preference data.
+
+
+
+## Implications of the Rasch Model
+
+The Rasch model provides **test-invariant measurement**: ability estimates are invariant to which questions are administered, provided those questions are calibrated.
+
+Under Rasch assumptions:
+- $U_i$ captures model competence across domains.
+- $V_j$ captures intrinsic question difficulty.
+- $\sigma(U_i - V_j)$ provides log-odds interpretability.
+
+These properties make Rasch-style models particularly appealing for **LLM evaluation**, where benchmark subsets differ across studies.
+
+
+
+
+## Estimation and Identification
+
+Estimation proceeds via **marginal maximum likelihood** or **EM** algorithms, alternating between estimating ability and item parameters.
+
+Identifiability is ensured by fixing the latent-ability mean to zero and variance to one.  
+For multidimensional models, **rotation constraints** (e.g., promax/varimax) align factors with interpretable axes.
+
+
+
+## Empirical Estimation via EM
+
+
+We now walk through a **simplified Rasch model** estimated by alternating updates.  
+The code below demonstrates data preparation, initialization, and optimization steps.
+
+
+### load data
 ```{python}
 from huggingface_hub import snapshot_download
 local_path = snapshot_download(
@@ -49,89 +72,108 @@ local_path = snapshot_download(
 )
 with open(f"{local_path}/data/HELM_benchmark.pkl", "rb") as f:
     results = pickle.load(f)
-
 ```
 
+This preprocessing ensures that the optimization operates only over valid responses while maintaining a consistent tensor shape.
 
-![Visualization of HELM Dataset](Figures/HELM_response_matrix.png){#fig-HELM_response_matrix width="100%"}
+### Train the model using EM
+
+We randomly mask 20% of the responses as a test set.
+The loop repeats until every test taker and item has at least one observed response in the training set — ensuring model identifiability.
+```{python}
+
+valid_condition = False
+trial = 0
+while not valid_condition:
+    train_idtor = torch.bernoulli(data_idtor * 0.8).int()
+    test_idtor = data_idtor - train_idtor
+    valid_condition = (train_idtor.sum(axis=1) != 0).all() and (train_idtor.sum(axis=0) != 0).all()
+    print(f"trial {trial} valid condition: {valid_condition}")
+    trial += 1
+```
+
+#### Fit Item difficulty $z_j$
+
+This stage estimates item difficulties by fixing a temporary set of ability estimates $ \theta_{\text{nuisance}} $.
+Each batch of questions (size 50k) is optimized using **L-BFGS** to minimize the negative log-likelihood.
+
+The logistic probabilities are given by:
+
+$$
+p(Y_{ij} = 1) = \sigma(\theta_i + z_j)
+$$
 
 
-
-## Open LLM Leaderboard
-We also use data from the **Open LLM Leaderboard** (Hugging Face, 2025), a public benchmarking platform that evaluates open large language models on a standardized suite of academic and practical tasks to track their progress over time.
-
-The dataset spans models submitted between **2022 and 2025**, covering parameter scales from **small models (<5B parameters)** to **frontier systems (>140B parameters)**.  
-In total, it includes **4,416 distinct language models**, each evaluated on **21,176 benchmark questions**.
-
-The questions originate from **six widely used evaluation suites**:
-- **MMLU-Pro** – professional-level multi-task language understanding,  
-- **OpenLLM-Math** – mathematical reasoning,  
-- **MUSR** – multi-step reasoning,  
-- **BBH** – Big-Bench Hard,  
-- **IFEval** – instruction-following evaluation, and  
-- **GPQA** – graduate-level problem solving and question answering.
-
-The leaderboard data are **complete**, with no missing entries.  
-For quality control, we remove **questions with mean accuracy ≤ 0.01 or ≥ 0.99** across models, which helps exclude degenerate items that are either too easy or too difficult.  
 
 ```{python}
-from huggingface_hub import snapshot_download
-local_path = snapshot_download(repo_id="stair-lab/reeval_fa", repo_type="dataset")
-with open(f"{local_path}/data/benchmark_data_open_llm_full_no_arc.pkl", "rb") as f:
-    results = pickle.load(f)
-
+# fit z
+B = 50000
+optimized_zs = []
+thetas_nuisance = torch.randn(150, n_test_takers, device=device)
+for i in tqdm(range(0, n_items, B)):
+    data_batch = data_with0[:, i:i+B]
+    train_idtor_batch = train_idtor[:, i:i+B]
+    current_B = data_batch.shape[1]
+    z_i = torch.randn(current_B, requires_grad=True, device=device)
+    optim_z_i = LBFGS([z_i], lr=0.1, max_iter=20, history_size=10, line_search_fn="strong_wolfe")
+    def closure_z_i():
+        optim_z_i.zero_grad()
+        probs = torch.sigmoid(thetas_nuisance[:, :, None] + z_i[None, None, :])
+        loss = -(Bernoulli(probs=probs).log_prob(data_batch)*train_idtor_batch).mean()
+        loss.backward()
+        return loss
+    z_i_optimized = trainer([z_i], optim_z_i, closure_z_i)[0].detach()
+    optimized_zs.append(z_i_optimized)
+zs = torch.cat(optimized_zs)
 ```
 
+#### Fit Model Abilities $\theta_j$
 
+This step optimizes the test takers’ abilities given fixed question difficulties.
 
-![Visualization of Open LLM Dataset](Figures/open_llm_response_matrix.png){#fig-open_llm_response_matrix width="100%"}
+```{python}
+# fit theta
+thetas = torch.randn(n_test_takers, requires_grad=True, device=device)
+optim_theta = LBFGS([thetas], lr=0.1, max_iter=20, history_size=10, line_search_fn="strong_wolfe")
+def closure_theta():
+    optim_theta.zero_grad()
+    probs = torch.sigmoid(thetas[:, None] + zs[None, :])
+    loss = -(Bernoulli(probs=probs).log_prob(data_with0)*train_idtor).mean()
+    loss.backward()
+    return loss
+thetas = trainer([thetas], optim_theta, closure_theta)[0]
+```
 
+### Evaluate 
 
+```{python}
+def compute_auc(probs, data, train_idtor, test_idtor):
+    train_probs = probs[train_idtor.bool()]
+    test_probs = probs[test_idtor.bool()]
+    train_labels = data[train_idtor.bool()]
+    test_labels = data[test_idtor.bool()]
+    
+    train_auc = auroc(train_probs, train_labels)
+    test_auc = auroc(test_probs, test_labels)
+    print(f"train auc: {train_auc}")
+    print(f"test auc: {test_auc}")
+    
+    return train_auc, test_auc
 
+# calculate metrics
+probs = torch.sigmoid(thetas[:, None] + zs[None, :])
 
-## LMarena Preference Data 
+train_auc, test_auc = compute_auc(probs, data_with0, train_idtor, test_idtor)
+```
 
-In addition to correctness-based evaluation, we incorporate **pairwise preference data** from the **LMarena dataset** ([Hugging Face, 2025](https://huggingface.co/lmarena-ai/datasets)), which provides human or automated judgments of relative model quality.
+## Measurement Desiderata for AI
 
-Each example corresponds to a **prompt** presented to two competing models, *A* and *B*, with an annotation indicating which model’s response is preferred.  
-This setup supports a **pairwise preference modeling** framework analogous to the **Bradley–Terry–Luce (BTL)** model:
+Reliable AI measurement requires models that are:
 
-$$
-p(\text{A preferred over B}) = \sigma(H_A - H_B)
-$$
+- **Reliable** – stable under test-set resampling and adaptive selection.
+- **Valid** – aligned with meaningful latent constructs such as reasoning or safety.
+- **Efficient** – minimizing query and labeling costs.
+- **Decision-guiding** – supporting practical comparison and monitoring across time.
 
-where \(H_A\) and \(H_B\) represent the latent performance of each model under the same prompt.  
-Higher values of \(H_A - H_B\) correspond to a stronger likelihood that model A’s response is preferred.
-
-The dataset includes:
-
-- **211,728 unique prompts**  
-- **3,779 unique model pairs**  
-- **179 distinct models** in total
-
-These preference judgments provide a complementary view of model quality, focusing on *relative comparisons* rather than absolute correctness.  
-By integrating this data with HELM and the Open LLM Leaderboard, we can jointly model both **objective accuracy** and **subjective preference**, enabling a unified latent factor representation of model performance.
-
-
-
-
-
-
-## Agent Leaderboard
-
-We further include **Agent Leaderboard data** ([Hugging Face Space](https://huggingface.co/spaces/galileo-ai/agent-leaderboard/tree/main)), developed by **Galileo AI**, which evaluates the *agentic performance* of large language models across a variety of tool-use and reasoning scenarios.
-
-This dataset contains approximately **34,700 rows**, where each row corresponds to a single question, the model’s generated response, and a numerical **score** judged by GPT-4.  
-When the score equals **1**, the model’s response is considered *correct* or *successful*; when the score equals **0**, it is considered *incorrect*.  
-Intermediate scores such as **0.33** or **0.67** indicate *partial correctness* or *low-confidence judgments* by GPT-4.
-
-The evaluation covers **multiple agentic subjects**, each consisting of roughly **100 questions**, and includes approximately **40 distinct models**, ranging from *Gemini-2.5*, *Claude-3.5*, *GPT-4.1/4.5*, *Llama-4*, *Qwen-2.5*, *DeepSeek-V3*, and other, totaling 33.
-
-This dataset provides a unique perspective on **agentic reasoning and tool-use capabilities**, complementing HELM’s standardized benchmarks, the Open LLM Leaderboard’s academic tasks, and LMarena’s human preference judgments.  
-Together, these four sources enable unified modeling of *accuracy*, *preference*, and *agency* within a shared latent-factor evaluation framework.
-
-
-
-
-
+The **AIMS framework** unifies these desiderata by combining Rasch-style probabilistic foundations with amortized inference and adaptive data collection.
 

@@ -1,8 +1,4 @@
-::: {.content-visible when-format="html"}
-::: {.quarto-title-citeas .csl-entry}
-Truong, S. T., Koyejo, S. 2025. _AI Measurement Science: A Science of Knowing Where AI Thrives, Where It Breaks, and How to Respond_. Stanford University.
-:::
-:::
+# Introduction {.unnumbered #sec-intro}
 
 Progress in artificial intelligence depends on knowing what our systems can do, how well they can do it, and under what conditions their behavior changes. Evaluation is therefore not an afterthought to AI development but its epistemic foundation. Every claim of progress—whether about improved reasoning, better alignment, or broader capability—rests on some act of measurement. Yet despite the centrality of evaluation, the field’s tools for measurement remain strikingly underdeveloped. Benchmarks proliferate faster than we can understand them, and leaderboards offer scores without scales, turning scientific assessment into a race of numbers detached from theory.
 
@@ -19,3 +15,9 @@ AI Measurement Sciences (AIMS) seeks to provide this missing foundation. It trea
 * What are the statistical and organizational conditions under which measurement becomes trustworthy enough to guide AI development and governance?
 
 This dissertation argues that answering these questions requires a probabilistic science of evaluation—one that unites methods from psychometrics, statistics, and machine learning. The goal is not merely to build better benchmarks but to establish a framework for scientific decision making about AI systems: when to trust, when to doubt, and how to act.
+
+::: {.content-visible when-format="html"}
+::: {.quarto-title-citeas .csl-entry}
+Truong, S. T., Koyejo, S. 2025. _AI Measurement Science: A Science of Knowing Where AI Thrives, Where It Breaks, and How to Respond_. Stanford University.
+:::
+:::
