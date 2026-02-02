@@ -36,7 +36,6 @@
 
 % set options for all boxes
 \usepackage{enumitem}
-\def\pagewidth{\marginparsep+\marginparsep+1pt}
 \tcbset{enhanced jigsaw,                          % skin
         breakable,                                % break across pages
         boxrule=2pt,                              % border width
@@ -44,7 +43,7 @@
         fonttitle=\sffamily\scshape\Large,        % title sans and small caps
         left=2mm, right=2mm,                      % padding inside box
         toptitle=1mm, bottomtitle=1mm,            % spacing above/below title
-        grow to right by=\pagewidth,              % fullwidth
+        grow to right by=2\marginparsep,          % fullwidth (approx)
         % show bounding box,
         fontupper=\small,
         before upper={\parskip6pt                 % format settings within box

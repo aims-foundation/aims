@@ -73,7 +73,6 @@ format:
     template-partials:
       - resources/tex/partials/before-body.tex
     citeproc: true # use Pandoc's built-in citation processing
-    csl: chicago-author-date-no-em-dash.csl
     toc-depth: 2 # level 1 headings (i.e. parts and chapters)
     toc-title: Table of Contents # title of table of contents
     links-as-notes: true # turn URLs into sidenotes
@@ -133,6 +132,7 @@ book:
   # cookie-consent: true
   chapters:
     - index.qmd
+    - src/chap1.qmd
     - src/chap2.qmd
     - src/chap3.qmd
     - src/chap4.qmd

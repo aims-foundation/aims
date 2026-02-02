@@ -1,18 +1,18 @@
 #!/bin/bash
 set -e
 
-# Add ~/bin to PATH for xelatex
-export PATH=~/bin:$PATH
+# Set HuggingFace cache to writable location
+export HF_HOME=/lfs/local/0/sttruong/.cache/huggingface
 
 # Activate conda environment
 source /lfs/local/0/sttruong/miniconda3/etc/profile.d/conda.sh
 conda activate aims
 
 # Navigate to project
-cd /lfs/skampere1/0/sttruong/aims
+cd /lfs/skampere2/0/sttruong/aims
 
 # Pull latest changes
-git pull
+# git pull
 
 # Note: Each quarto render clears _book/, so we need to preserve outputs
 # between renders by syncing to a temporary location
@@ -27,6 +27,6 @@ quarto render --to html --profile html --no-clean
 
 # Deploy book to www
 echo "Deploying to www..."
-rsync -av --delete _book/ /afs/cs/group/aimslab/www/
+rsync -av --delete --no-perms --no-owner --no-group _book/ /afs/cs/group/aimslab/www/
 
 echo "Deployed successfully!"

@@ -4,16 +4,6 @@ Truong, S. T., Koyejo, S. 2025. _AI Measurement Science: A Science of Knowing Wh
 :::
 :::
 
-# The Case for AI Measurement Sciences {#sec-case}
-
-<!-- * Motivation: why evaluation is central to AI progress and safety.
-
-* Limitations of existing benchmarks and leaderboards.
-
-* Analogy to measurement science in psychology, education, and the physical sciences.
-
-* Research questions and contributions of the dissertation. -->
-
 Progress in artificial intelligence depends on knowing what our systems can do, how well they can do it, and under what conditions their behavior changes. Evaluation is therefore not an afterthought to AI development but its epistemic foundation. Every claim of progress—whether about improved reasoning, better alignment, or broader capability—rests on some act of measurement. Yet despite the centrality of evaluation, the field’s tools for measurement remain strikingly underdeveloped. Benchmarks proliferate faster than we can understand them, and leaderboards offer scores without scales, turning scientific assessment into a race of numbers detached from theory.
 
 Contemporary evaluation practice in AI largely relies on finite collections of datasets and metrics—benchmarks that serve as de facto instruments of measurement. These instruments are often designed without formal notions of validity, reliability, or calibration. A model’s average accuracy across a dataset says little about why it succeeds, where it fails, or how its abilities generalize beyond the test. The result is an evaluation ecosystem that produces motion without understanding. Without a coherent measurement framework, we risk mistaking leaderboard ascent for scientific progress.
