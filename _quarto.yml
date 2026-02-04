@@ -7,6 +7,7 @@ project:
 resources:
   - CNAME
   - "*.pdf"
+  - "src/data/*.json"
   
 reference-location: document # footnotes in margin
 citation-location: document # citations in margin
@@ -135,5 +136,5 @@ book:
     - src/chap1.qmd
     - src/chap2.qmd
     - src/chap3.qmd
-    - src/chap4.qmd
+    - src/chap4.qdm
     - src/chap5.qmd

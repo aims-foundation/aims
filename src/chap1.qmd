@@ -1,10 +1,41 @@
 ---
-title: "Foundation"
-format: html
-jupyter: python3
-execute:
-  echo: true
-  eval: false
+title: "Foundations"
+format:
+  html:
+    include-after-body:
+      text: |
+        <script>
+        // Auto-execute all pyodide cells after initialization
+        document.addEventListener('DOMContentLoaded', function() {
+          // Wait for pyodide to be fully ready (mainPyodide is set after loading)
+          function waitForPyodide() {
+            if (typeof globalThis.mainPyodide !== 'undefined' && globalThis.mainPyodide) {
+              // Pyodide is ready, execute all cells with autorun=true
+              if (typeof globalThis.qpyodideCellDetails !== 'undefined') {
+                globalThis.qpyodideCellDetails.forEach((cell, index) => {
+                  if (cell.options && cell.options.autorun === 'true') {
+                    setTimeout(() => {
+                      const runButton = document.querySelector(`#qpyodide-button-run-${cell.id}`);
+                      if (runButton && !runButton.disabled) {
+                        runButton.click();
+                      }
+                    }, index * 1000); // Stagger execution by 1 second each
+                  }
+                });
+              }
+            } else {
+              setTimeout(waitForPyodide, 500);
+            }
+          }
+          setTimeout(waitForPyodide, 2000); // Start checking after 2 seconds
+        });
+        </script>
+filters:
+  - pyodide
+pyodide:
+  packages:
+    - numpy
+    - matplotlib
 ---
 
 # Foundations of Measurement {#sec-foundations}
@@ -85,15 +116,14 @@ $$
 
 The naive approach to evaluation computes row means (model accuracies) and ranks models accordingly. But the response matrix contains far more information than these marginal statistics. The *pattern* of responses---which models succeed on which questions---reveals structure that aggregate scores obscure.
 
-```{python}
+{{< include _plt_setup.qmd >}}
+
+```{pyodide-python}
 #| label: response-matrix-visualization
+#| autorun: true
 #| fig-cap: "Response matrix from a language model evaluation. Rows are models (sorted by total score), columns are questions (sorted by difficulty). The diagonal structure suggests underlying ability and difficulty parameters."
 
-import numpy as np
-import matplotlib.pyplot as plt
-
 # Simulate a response matrix with Rasch model structure
-np.random.seed(42)
 N, M = 50, 200  # 50 models, 200 questions
 
 # Generate latent abilities and difficulties
@@ -110,21 +140,12 @@ col_order = np.argsort(Y.sum(axis=0))[::-1]
 Y_sorted = Y[row_order][:, col_order]
 
 # Plot
-fig, axes = plt.subplots(1, 2, figsize=(12, 5))
+fig, ax = plt.subplots(1, 1)
+ax.imshow(Y_sorted, aspect='auto', cmap='Blues', interpolation='nearest')
+ax.set_xlabel('Questions (sorted by difficulty)')
+ax.set_ylabel('Models (sorted by ability)')
+ax.set_title('Sorted Response Matrix')
 
-# Unsorted
-axes[0].imshow(Y, aspect='auto', cmap='Blues', interpolation='nearest')
-axes[0].set_xlabel('Questions')
-axes[0].set_ylabel('Models')
-axes[0].set_title('Raw Response Matrix')
-
-# Sorted
-axes[1].imshow(Y_sorted, aspect='auto', cmap='Blues', interpolation='nearest')
-axes[1].set_xlabel('Questions (sorted by difficulty)')
-axes[1].set_ylabel('Models (sorted by ability)')
-axes[1].set_title('Sorted Response Matrix')
-
-plt.tight_layout()
 plt.show()
 ```
 
@@ -149,6 +170,21 @@ The tools developed in psychometrics are not merely analogies---they are directl
 ::: {.callout-note title="The Central Claim of AIMS"}
 AI benchmarks are tests in the psychometric sense. The methods developed over a century of educational and psychological measurement---Item Response Theory, factor analysis, validity frameworks---apply directly to AI evaluation. Understanding and applying these methods is essential for trustworthy AI measurement.
 :::
+
+
+### Evaluation Datasets Used in This Book {#sec-datasets}
+
+Throughout this book, we work with several large-scale evaluation corpora that represent distinct yet complementary perspectives on measuring model behavior. These datasets provide the empirical foundation for our analyses.
+
+**HELM Benchmark Suite.** We use **22 datasets** drawn from **5 HELM repositories**---*Classic*, *Lite*, *AIR-Bench*, *Thai Exam*, and *MMLU*---encompassing both *capability* and *safety* measurements. In total, this collection includes **172 test takers** (models) and **217,268 questions**. We focus on responses that can be graded dichotomously (correct/incorrect), as is the case for most benchmarks through metrics such as *exact match* or *equivalent indicator*. To ensure stable estimation, we remove duplicate questions, those with identical response patterns, or with fewer than 30 test takers; exclude test takers with fewer than 30 total responses; and treat unattempted questions as missing values.
+
+**Open LLM Leaderboard.** We use data from the **Open LLM Leaderboard** (Hugging Face, 2025), a public benchmarking platform that evaluates open large language models on a standardized suite of academic and practical tasks. The dataset spans models submitted between **2022 and 2025**, covering parameter scales from small models (<5B parameters) to frontier systems (>140B parameters). In total, it includes **4,416 distinct language models**, each evaluated on **21,176 benchmark questions** from six suites: MMLU-Pro, OpenLLM-Math, MUSR, BBH, IFEval, and GPQA.
+
+**LMarena Preference Data.** In addition to correctness-based evaluation, we incorporate **pairwise preference data** from the **LMarena dataset**, which provides human or automated judgments of relative model quality. Each example corresponds to a prompt presented to two competing models, with an annotation indicating which response is preferred. The dataset includes **211,728 unique prompts**, **3,779 unique model pairs**, and **179 distinct models**. These preference judgments provide a complementary view focusing on *relative comparisons* rather than absolute correctness.
+
+**Agent Leaderboard.** We include **Agent Leaderboard data** from Galileo AI, which evaluates the *agentic performance* of large language models across tool-use and reasoning scenarios. This dataset contains approximately **34,700 rows**, where each row corresponds to a question, the model's response, and a numerical score judged by GPT-4. The evaluation covers multiple agentic subjects with roughly 100 questions each, including approximately **40 distinct models** such as Gemini-2.5, Claude-3.5, GPT-4.1/4.5, Llama-4, and Qwen-2.5.
+
+Together, these four sources enable unified modeling of *accuracy*, *preference*, and *agency* within a shared latent-factor evaluation framework.
 
 
 ## Borsboom's Warrant Inference Framework {#sec-borsboom}
@@ -282,8 +318,9 @@ The model has an elegant interpretation: the probability of success depends only
 
 The function $P(\theta) = \sigma(\theta - \beta)$ is called the **Item Characteristic Curve (ICC)**. It describes how the probability of success changes with ability for a fixed item.
 
-```{python}
+```{pyodide-python}
 #| label: icc-rasch
+#| autorun: true
 #| fig-cap: "Item Characteristic Curves for Rasch model items with different difficulties. All curves have the same shape (slope), differing only in their location."
 
 import numpy as np
@@ -295,7 +332,7 @@ def sigmoid(x):
 theta = np.linspace(-4, 4, 200)
 difficulties = [-2, -1, 0, 1, 2]
 
-plt.figure(figsize=(10, 6))
+plt.figure()
 for beta in difficulties:
     prob = sigmoid(theta - beta)
     plt.plot(theta, prob, label=f'$\\beta = {beta}$', linewidth=2)
@@ -303,7 +340,6 @@ for beta in difficulties:
 plt.axhline(y=0.5, color='gray', linestyle='--', alpha=0.5)
 plt.xlabel('Ability ($\\theta$)', fontsize=12)
 plt.ylabel('$P(Y = 1)$', fontsize=12)
-plt.title('Rasch Model: Item Characteristic Curves', fontsize=14)
 plt.legend(title='Item Difficulty')
 plt.grid(True, alpha=0.3)
 plt.show()
@@ -323,8 +359,9 @@ where $a_j > 0$ is the discrimination parameter for item $j$.
 
 Items with higher discrimination are better at distinguishing between persons of different abilities. Their ICCs are steeper, meaning small changes in ability produce large changes in response probability.
 
-```{python}
+```{pyodide-python}
 #| label: icc-2pl
+#| autorun: true
 #| fig-cap: "Item Characteristic Curves for 2PL model items with different discriminations. Higher discrimination (steeper slope) means the item better distinguishes between ability levels."
 
 theta = np.linspace(-4, 4, 200)
@@ -333,7 +370,7 @@ theta = np.linspace(-4, 4, 200)
 beta = 0
 discriminations = [0.5, 1.0, 1.5, 2.0]
 
-plt.figure(figsize=(10, 6))
+plt.figure()
 for a in discriminations:
     prob = sigmoid(a * (theta - beta))
     plt.plot(theta, prob, label=f'$a = {a}$', linewidth=2)
@@ -362,8 +399,9 @@ where $c_j \in [0, 1]$ is the guessing (or pseudo-chance) parameter.
 
 For a 4-option multiple-choice item, we might expect $c_j \approx 0.25$ if low-ability test-takers guess randomly.
 
-```{python}
+```{pyodide-python}
 #| label: icc-3pl
+#| autorun: true
 #| fig-cap: "Comparison of 1PL, 2PL, and 3PL models. The 3PL has a non-zero lower asymptote representing guessing."
 
 theta = np.linspace(-4, 4, 200)
@@ -375,7 +413,7 @@ p_1pl = sigmoid(theta - beta)
 p_2pl = sigmoid(a * (theta - beta))
 p_3pl = c + (1 - c) * sigmoid(a * (theta - beta))
 
-plt.figure(figsize=(10, 6))
+plt.figure()
 plt.plot(theta, p_1pl, label='1PL (Rasch)', linewidth=2)
 plt.plot(theta, p_2pl, label='2PL', linewidth=2)
 plt.plot(theta, p_3pl, label='3PL', linewidth=2)
@@ -440,6 +478,50 @@ The Rasch model $P(Y_{ij} = 1) = \sigma(\theta_i - \beta_j)$ is equivalent to a 
 :::
 
 More generally, multidimensional IRT models and logistic factor models are closely related, differing primarily in parameterization and estimation approach.
+
+#### The Structure Matrix {#sec-structure-matrix}
+
+After fitting a multidimensional factor model, we obtain estimated item loadings $\hat{V}_j$ that describe how each item relates to the latent factors. However, raw factor loadings require standardization for interpretable comparisons across items and benchmarks.
+
+The **structure matrix** $S$ captures the correlation between each item's latent response and each factor:
+
+::: {.callout-note title="Definition: Structure Matrix"}
+For a logistic factor model, the latent response $Y^*_{ij}$ can be written as $Y^*_{ij} = U_i^\top V_j + Z_j + \epsilon_{ij}$, where $\epsilon_{ij}$ follows a logistic distribution with variance $\pi^2/3$. The structure matrix entry $S_{jk}$ is the correlation between item $j$'s latent response and factor $k$:
+
+$$
+S_{jk} = \text{Cor}(Y^*_{ij}, U_{ik}) = \frac{(V_j^\top \Sigma)_k}{\sqrt{\Sigma_{kk}} \sqrt{V_j^\top \Sigma V_j + \pi^2/3}}
+$$
+
+where $\Sigma = \text{Cov}(U)$ is the factor covariance matrix.
+:::
+
+The structure matrix has several important properties:
+
+1. **Bounded values:** Each entry $S_{jk} \in [-1, 1]$, making comparisons intuitive.
+2. **Interpretability:** High positive values indicate the item strongly measures that factor; negative values indicate inverse relationships.
+3. **Clustering:** Items with similar structure vectors measure similar constructs and can be grouped together.
+
+For AI benchmarks, the structure matrix reveals which questions tap into which capabilities. Two questions may both be "correct/incorrect" but load on different factors---one measuring reasoning, another measuring factual recall. This has important implications for how we interpret aggregate benchmark scores.
+
+#### Item Clustering and Benchmark Heterogeneity {#sec-item-clustering}
+
+With the structure matrix in hand, we can cluster items into latent subgroups using standard clustering algorithms such as Gaussian Mixture Models (GMM). Each cluster represents a group of items sharing similar factor loadings---analogous to "skills" or "themes" within the benchmark. This approach is analogous to exploratory factor analysis in psychometrics, revealing whether benchmarks are essentially unidimensional or composed of multiple, potentially antagonistic, latent skills.
+
+::: {.callout-important title="Benchmark Heterogeneity"}
+A key insight from factor analysis applied to AI benchmarks is that **benchmarks are rarely homogeneous**. Intentionally or not, they often combine items that test different capabilities, and even a single benchmark item may test a combination of capabilities.
+
+Two models with identical mean scores may excel on different capability dimensions. For example, one model might be strong in reasoning but weak in factual recall, while another may have the reverse profile. When item clusters show weak or negative correlations with each other, the benchmark-level mean score becomes neither informative nor accurate about subgroup performance.
+:::
+
+Within each benchmark, we can quantify inter-construct correlations by:
+
+1. **Clustering items** based on their structure vectors using GMM with BIC for model selection
+2. **Computing cluster means** for each model (average accuracy on items in each cluster)
+3. **Correlating cluster means** across models to assess construct overlap
+
+Strongly positive inter-cluster correlations indicate overlapping constructs, while weak or negative correlations suggest distinct and possibly conflicting capabilities being aggregated by the benchmark's mean score. This multidimensional pattern explains why two models with identical overall accuracies may excel on entirely different skill axes.
+
+Factor models assign a feature vector to each item (the structure vector), allowing items to be clustered via standard algorithms. This helps interpret evaluation results that would otherwise be obscured by aggregate scores.
 
 ### Paired Comparison Models: Elo and Bradley-Terry {#sec-paired-comparison}
 
@@ -926,15 +1008,13 @@ This chapter has introduced the measurement science framework that underlies the
 
 The chapters that follow apply this framework to specific AI evaluation challenges:
 
-- **Chapter 2 (Dataset Description):** Introduces the response matrices we will analyze---data from HELM, Open LLM Leaderboard, Chatbot Arena, and agent benchmarks.
+- **Chapter 2 (Learning):** Covers parameter estimation for IRT and factor models, including maximum likelihood, EM algorithms, Bayesian inference, and computerized adaptive testing. Also introduces generalization experiments with various masking schemes.
 
-- **Chapter 3 (Unidimensional Measurement):** Applies Rasch models to AI benchmarks, testing whether sum scores are appropriate summaries of model capability.
+- **Chapter 3 (Design):** Applies measurement principles to benchmark design, addressing how to construct valid and reliable AI evaluations.
 
-- **Chapter 4 (Multidimensional Measurement):** Uses factor models to uncover the dimensional structure of AI capabilities, revealing that aggregate scores hide important variation.
+- **Chapter 4 (Conclusion):** Synthesizes the measurement science approach and discusses future directions for AI evaluation.
 
-- **Chapter 5 (Prediction-Powered Evaluation):** Develops methods for efficient evaluation of new models and new questions using prediction models trained on historical data.
-
-The measurement concepts from this chapter recur throughout. When we ask whether a benchmark is "valid," we mean validity in Borsboom's sense. When we justify using sum scores, we appeal to sufficiency in the Rasch sense. When we analyze benchmark dimensionality, we apply factor models from the psychometric tradition.
+The measurement concepts from this chapter recur throughout. When we ask whether a benchmark is "valid," we mean validity in Borsboom's sense. When we justify using sum scores, we appeal to sufficiency in the Rasch sense. When we analyze benchmark dimensionality, we apply the factor models introduced in this chapter and trained using methods from Chapter 2.
 
 
 ## Exercises {#sec-exercises}
