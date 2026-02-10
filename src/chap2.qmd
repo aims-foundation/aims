@@ -229,7 +229,7 @@ print(f"Model accuracies range: [{Y.mean(axis=1).min():.3f}, {Y.mean(axis=1).max
 print(f"Item difficulties range: [{Y.mean(axis=0).min():.3f}, {Y.mean(axis=0).max():.3f}]")
 
 # Visualize
-fig, axes = plt.subplots(1, 2, figsize=(12, 5))
+fig, axes = plt.subplots(1, 2, figsize=(6, 2))
 
 # Raw response matrix
 axes[0].imshow(Y, aspect='auto', cmap='Blues')
@@ -296,7 +296,7 @@ for iteration in range(n_iterations):
     ll_history.append(ll)
 
 # Plot convergence
-fig, axes = plt.subplots(1, 3, figsize=(14, 4))
+fig, axes = plt.subplots(1, 3, figsize=(6, 2))
 
 # Convergence curve
 axes[0].plot(ll_history)
@@ -644,7 +644,7 @@ def em_rasch(Y, n_iterations=50, n_quadrature=21, verbose=True):
 theta_em, beta_em, ll_em = em_rasch(Y, n_iterations=50)
 
 # Plot results
-fig, axes = plt.subplots(1, 3, figsize=(14, 4))
+fig, axes = plt.subplots(1, 3, figsize=(6, 2))
 
 # Convergence
 axes[0].plot(ll_em)
@@ -852,7 +852,7 @@ theta_map = theta_map - theta_map.mean()
 beta_map = beta_map - beta_map.mean()
 
 # Compare MLE vs MAP
-fig, axes = plt.subplots(1, 2, figsize=(12, 5))
+fig, axes = plt.subplots(1, 2, figsize=(6, 2))
 
 # Abilities
 axes[0].scatter(theta_true_centered, theta_lbfgs, alpha=0.5, label='MLE', s=30)
@@ -972,7 +972,7 @@ theta_samples, beta_samples, acc_rate = metropolis_hastings_rasch(
 )
 
 # Visualization
-fig, axes = plt.subplots(2, 3, figsize=(14, 8))
+fig, axes = plt.subplots(2, 3, figsize=(6, 2))
 
 # Trace plots for selected ability parameters
 for i, idx in enumerate([0, 49, 99]):
@@ -1114,7 +1114,7 @@ for lam in lambdas:
     print(f"  lambda = {lam:5.3f}: CV log-lik = {mean:.4f} +/- {std:.4f}")
 
 # Plot
-plt.figure(figsize=(8, 5))
+plt.figure()
 plt.errorbar(lambdas, cv_means, yerr=cv_stds, fmt='o-', capsize=5, markersize=8)
 plt.xscale('log')
 plt.xlabel('Regularization strength ($\\lambda$)')
@@ -1173,7 +1173,7 @@ This is maximized when $P_j(\theta) = 0.5$, which occurs when $\theta = \beta_j$
 # Plot Fisher information curves
 theta_range = np.linspace(-4, 4, 200)
 
-fig, axes = plt.subplots(1, 2, figsize=(12, 5))
+fig, axes = plt.subplots(1, 2, figsize=(6, 2))
 
 # Information curves for different item difficulties
 difficulties = [-2, -1, 0, 1, 2]
@@ -1416,7 +1416,7 @@ cat_items = [r['n_items'] for r in cat_results]
 random_items = [r['n_items'] for r in random_results]
 
 # Plot comparison
-fig, axes = plt.subplots(1, 3, figsize=(15, 5))
+fig, axes = plt.subplots(1, 3, figsize=(6, 2))
 
 # Bar chart: average items needed
 methods = ['Random', 'CAT']
