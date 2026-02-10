@@ -77,6 +77,9 @@ renv/python/
 *.Rproj
 .Rbuildignore
 
+# Manim render cache
+media/
+
 # Claude Code config
 CLAUDE.md
 .claude/

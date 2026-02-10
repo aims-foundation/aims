@@ -8,6 +8,7 @@ resources:
   - CNAME
   - "*.pdf"
   - "src/data/*.json"
+  - "animations/**/*.mp4"
   
 reference-location: document # footnotes in margin
 citation-location: document # citations in margin
@@ -136,5 +137,5 @@ book:
     - src/chap1.qmd
     - src/chap2.qmd
     - src/chap3.qmd
-    - src/chap4.qdm
+    - src/chap4.qmd
     - src/chap5.qmd

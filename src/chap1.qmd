@@ -55,6 +55,12 @@ By the end of this chapter, you will be able to:
 10. **Evaluate** the assumptions underlying AI leaderboards and identify potential violations of measurement principles.
 :::
 
+::: {.callout-tip title="Video Overview" collapse="false"}
+A visual tour of the key concepts in this chapter — from response matrices and item characteristic curves to factor models and benchmark heterogeneity.
+
+{{< video ../animations/ch1/chapter1_narrated.mp4 >}}
+:::
+
 ::: {.callout-note title="Notation"}
 Throughout this chapter, we use the following conventions:
 
@@ -292,7 +298,7 @@ Without such frameworks, we have benchmark scores without meaning.
 
 ## Probabilistic Models for Measurement {#sec-probabilistic-models}
 
-Measurement requires a model connecting observable responses to latent constructs. This section surveys the major families of probabilistic models used in measurement: Item Response Theory, factor models, paired comparison systems, and network models. These models provide the statistical machinery for extracting latent variables from response data.
+Measurement requires a model connecting observable responses to latent constructs. This section surveys the major families of probabilistic models used in measurement: Item Response Theory, factor models, paired comparison systems, network models, and hierarchical models. These models provide the statistical machinery for extracting latent variables from response data.
 
 ### Item Response Theory {#sec-irt}
 
@@ -315,6 +321,8 @@ where:
 :::
 
 The model has an elegant interpretation: the probability of success depends only on the *difference* between ability and difficulty. When $\theta_i = \beta_j$, the probability is exactly 0.5---the person has a 50% chance of answering correctly. When $\theta_i > \beta_j$, the probability exceeds 0.5; when $\theta_i < \beta_j$, it falls below 0.5.
+
+![Plate diagram for the Rasch model. Shaded nodes are observed; open nodes are latent. Plates indicate replication over persons ($i$) and items ($j$).](Figures/plate_rasch.png){#fig-rasch-plate width=50%}
 
 The function $P(\theta) = \sigma(\theta - \beta)$ is called the **Item Characteristic Curve (ICC)**. It describes how the probability of success changes with ability for a fixed item.
 
@@ -359,6 +367,8 @@ where $a_j > 0$ is the discrimination parameter for item $j$.
 
 Items with higher discrimination are better at distinguishing between persons of different abilities. Their ICCs are steeper, meaning small changes in ability produce large changes in response probability.
 
+![Plate diagram for the 2PL model. Each item now has both a difficulty $\beta_j$ and a discrimination $a_j$ parameter.](Figures/plate_2pl.png){#fig-2pl-plate width=50%}
+
 ```{pyodide-python}
 #| label: icc-2pl
 #| autorun: true
@@ -398,6 +408,8 @@ where $c_j \in [0, 1]$ is the guessing (or pseudo-chance) parameter.
 :::
 
 For a 4-option multiple-choice item, we might expect $c_j \approx 0.25$ if low-ability test-takers guess randomly.
+
+![Plate diagram for the 3PL model. The guessing parameter $c_j$ sets a lower asymptote on the response probability.](Figures/plate_3pl.png){#fig-3pl-plate width=50%}
 
 ```{pyodide-python}
 #| label: icc-3pl
@@ -468,6 +480,8 @@ where:
 :::
 
 This is the model used in later chapters of AIMS for multidimensional AI evaluation.
+
+![Plate diagram for the logistic factor model. The latent factor vector $U_i$ interacts with item-specific loadings $V_j$ and intercepts $Z_j$ to produce responses.](Figures/plate_factor.png){#fig-factor-plate width=50%}
 
 #### Connection Between IRT and Factor Analysis
 
@@ -541,6 +555,8 @@ where $\theta_i$ is the "strength" or "quality" of item $i$.
 
 The model has the same mathematical form as the Rasch model, but the interpretation differs: instead of a person answering an item, we have two items competing against each other.
 
+![Plate diagram for the Bradley-Terry model. A comparison outcome $Y_c$ depends on the strengths $\theta_i$ and $\theta_j$ of the two competitors in each pair.](Figures/plate_bt.png){#fig-bt-plate width=50%}
+
 #### The Elo Rating System
 
 The Elo rating system, developed by Arpad Elo for chess ratings, is essentially a Bradley-Terry model with online updates:
@@ -607,6 +623,8 @@ where:
 
 In the Ising model, the correlation between two items arises from their direct connection $\omega_{jk}$, not from a common latent factor.
 
+![Graphical model for the Ising model. Unlike latent variable models, all nodes are observed and correlations arise from direct pairwise connections $\omega_{jk}$.](Figures/plate_ising.png){#fig-network-diagram width=50%}
+
 #### Network vs. Latent Variable Models
 
 The choice between network and latent variable models reflects different theories about what causes observed correlations:
@@ -627,6 +645,40 @@ The choice between latent variable and network models is not merely technical---
 - **Network view:** Benchmark items measure distinct skills that may reinforce each other but do not share a common cause.
 
 Both views may be partially correct. AIMS primarily adopts the latent variable view but acknowledges that some benchmark items may not fit this framework.
+:::
+
+### Hierarchical Models {#sec-hierarchical-models}
+
+The models introduced so far treat all items as exchangeable---a single set of item parameters enters the likelihood without any grouping structure. In practice, AI evaluations are *nested*: items belong to benchmarks, benchmarks belong to suites or domains, and suites may be grouped into broader capability areas. Hierarchical (multilevel) models make this nesting explicit in the model specification, treating it as part of the data-generating process rather than an afterthought of analysis.
+
+::: {.callout-note title="Definition: Hierarchical IRT Model"}
+Consider item $i$ nested within benchmark $j$. A hierarchical extension of the Rasch model specifies:
+
+$$
+\text{logit}\, P(Y_{ij} = 1 \mid \theta, b_{ij}) = \theta - b_{ij}
+$$
+
+where item difficulties are drawn from a benchmark-level distribution:
+
+$$
+b_{ij} \sim \mathcal{N}(\mu_j, \sigma_j^2)
+$$
+
+The benchmark means $\mu_j$ may themselves follow a domain-level distribution $\mu_j \sim \mathcal{N}(\mu_0, \tau^2)$, creating a three-level hierarchy: items within benchmarks within domains. The same hierarchical extension applies to 2PL, 3PL, and factor models.
+:::
+
+![Plate diagram for the hierarchical IRT model. Item difficulties $b_{ij}$ are drawn from benchmark-level distributions parameterized by $\mu_j$ and $\sigma_j$, which may themselves be drawn from domain-level hyperparameters $\mu_0$ and $\tau$. Nested plates reflect the hierarchical data structure.](Figures/plate_hierarchical.png){#fig-hierarchical-plate width=50%}
+
+The decision to include hierarchical structure is a *modeling* choice, analogous to the decision between the 1PL and 2PL. It encodes the assumption that items within the same benchmark share difficulty characteristics---their parameters are not independent draws from a single global distribution, but cluster by benchmark. Ignoring this structure and treating all items as exchangeable conflates within-benchmark and between-benchmark variation, producing estimates that may not generalize beyond the specific items observed [@luettgau2025hibayes].
+
+::: {.callout-note title="Hierarchical Structure in AI Evaluation"}
+Modern AI evaluations exhibit natural hierarchy at multiple levels:
+
+- **MMLU:** 15,908 items $\to$ 57 subjects $\to$ 4 domains (humanities, social sciences, STEM, other)
+- **GAIA:** agentic tasks $\to$ 3 difficulty levels $\to$ capability domain
+- **Coding benchmarks:** problems $\to$ benchmarks (HumanEval, MBPP, DS-1000) $\to$ coding capability
+
+Explicitly modeling these levels separates the sources of variation at each level. This enables principled generalization from the benchmarks actually tested to the broader construct they are intended to measure. Estimation methods for hierarchical models, including partial pooling and Bayesian inference, are covered in Chapter 2.
 :::
 
 
@@ -1000,7 +1052,7 @@ This chapter has introduced the measurement science framework that underlies the
 
 3. **The Rasch model has special properties.** Sufficiency of sum scores and specific objectivity make Rasch uniquely suitable for fundamental measurement. These properties justify treating sum scores as measurements.
 
-4. **Multiple models exist for different purposes.** IRT models (1PL, 2PL, 3PL), factor models, paired comparison models (Bradley-Terry, Elo), and network models (GGM, Ising) serve different purposes. The choice has implications for what we can conclude.
+4. **Multiple models exist for different purposes.** IRT models (1PL, 2PL, 3PL), factor models, paired comparison models (Bradley-Terry, Elo), network models (GGM, Ising), and hierarchical models serve different purposes. The choice of model---including whether to represent nested evaluation structure---has implications for what we can conclude.
 
 5. **Psychology solved these problems decades ago.** The tools developed in psychometrics---reliability, validity, dimensionality analysis, adaptive testing---apply directly to AI evaluation.
 

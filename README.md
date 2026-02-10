@@ -170,6 +170,41 @@ rsync -av --delete _book/ /afs/cs/group/aimslab/www/
 
 **Note:** If running manually and you need both HTML and PDF, you may need to render them separately and sync after each step, as each render clears `_book/`.
 
+## Chapter Videos (Animations)
+
+Each chapter includes an optional animated video overview built with [Manim Community Edition](https://www.manim.community/) (3Blue1Brown-style). All animation source files, scripts, and tooling live in the `animations/` directory.
+
+See [`animations/HOWTO.md`](animations/HOWTO.md) for the full guide on creating videos for new chapters.
+
+### Quick start
+
+```bash
+# Install Manim (one-time, requires conda for system libs)
+conda install -y -c conda-forge pango cairo pkg-config ffmpeg
+pip install manim
+
+# Render a single animation (1080p60)
+PATH="/lfs/local/0/sttruong/miniconda3/bin:$PATH" \
+  manim -qh --disable_caching animations/icc_models.py ICCModels
+
+# Stitch all chapter clips into a final video with background music
+bash animations/stitch.sh --music animations/music/chopin_nocturne_op9_no2.mp3
+```
+
+### File structure
+
+| Path | Description |
+|------|-------------|
+| `animations/HOWTO.md` | Full guide for creating chapter videos |
+| `animations/<concept>.py` | Manim scenes for individual concepts |
+| `animations/section_titles.py` | Title card scenes (opening, parts, closing) |
+| `animations/stitch.sh` | ffmpeg stitching script (crossfade + music) |
+| `animations/music/` | Background music tracks (CC0 / public domain) |
+| `animations/script.md` | Narration script with animation cues |
+| `animations/animation.md` | Animation plan with storyboards |
+
+Videos are embedded in chapters using Quarto's `{{< video >}}` shortcode.
+
 ## Troubleshooting
 
 - **Quarto version issues:** Ensure you have Quarto >= 1.5.56. Check with `quarto --version`.
