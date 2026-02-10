@@ -103,6 +103,11 @@ Building on Chapter 1, we use the following additional notation:
 | $\eta$ | Learning rate | $\mathbb{R}^+$ |
 :::
 
+::: {.callout-tip title="Video Overview" collapse="false"}
+A visual tour of the key concepts in this chapter — from maximum likelihood estimation and the EM algorithm to Bayesian inference and computerized adaptive testing.
+
+{{< video ../animations/ch2/chapter2_narrated.mp4 >}}
+:::
 
 ## Why Learning Matters for AI Measurement {#sec-why-learning}
 

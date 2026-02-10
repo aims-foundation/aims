@@ -257,8 +257,8 @@ def estimate_rate(text_chunks: list[dict], target_dur: float,
     # Rate adjustment as percentage
     rate_pct = ((required_wpm / base_wpm) - 1) * 100
 
-    # Clamp to reasonable range: don't go slower than -10% or faster than +60%
-    rate_pct = max(-10, min(60, rate_pct))
+    # Clamp to natural pace: never speed up, only slow down if needed
+    rate_pct = max(-10, min(0, rate_pct))
 
     sign = "+" if rate_pct >= 0 else ""
     return f"{sign}{int(rate_pct)}%"

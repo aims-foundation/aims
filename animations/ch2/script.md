@@ -21,32 +21,30 @@ Format: Narrated animation (3Blue1Brown style)
 
 **NARRATOR:**
 
-In the last chapter, we defined the measurement models — the Rasch model,
-the 2PL, factor models — that describe how latent abilities generate
-observed responses.
+In the last chapter, we defined measurement models — Rasch, 2PL, factor
+models — that describe how latent abilities generate observed responses.
 
 [beat]
 
-But knowing the *form* of a model is not enough. To actually *use* these
-models for AI evaluation, we must estimate their parameters from data.
+But knowing the form of a model is not enough. To use these models,
+we must estimate their parameters from data.
 
 > [ANIMATION: opening_hook.py — OpeningHook]
 > Cue: Rasch formula with response matrix grid
 
-Think of it this way. The Rasch model says: the probability of a correct
-response is the sigmoid of theta minus beta. Beautiful. But theta and beta
-are *unknown*. They are the hidden quantities we are trying to measure.
+The Rasch model says the probability of a correct response depends on
+theta minus beta. But theta and beta are *unknown* — the hidden
+quantities we want to measure.
 
 > Cue: Question marks pulse on theta and beta
 
-So the central problem of this chapter is: given a matrix of zeros and ones
-— right and wrong answers — find the parameter values that best explain
-the data.
+Given a matrix of right and wrong answers, find the parameters that
+best explain the data.
 
 > Cue: Likelihood landscape with gradient ascent path
 
-This is an optimization problem. We need to climb the likelihood landscape
-to find its peak. And the tools for doing that are the subject of this chapter.
+This is an optimization problem — climbing the likelihood landscape
+to find its peak.
 
 [pause]
 
@@ -58,36 +56,26 @@ to find its peak. And the tools for doing that are the subject of this chapter.
 > Cue: Single-item likelihood visualization
 
 Maximum likelihood estimation starts with a simple principle: find the
-parameter values that make the observed data *most probable*.
+parameters that make the observed data most probable.
 
-For a single item, the likelihood depends on whether the model answered
-correctly. If it did, we want the predicted probability to be high. If it
-didn't, we want it low. The likelihood measures how well our parameters
-explain what we saw.
+For a single item, the likelihood measures how well our parameters
+explain what we saw — high predicted probability for correct responses,
+low for incorrect.
 
 > Cue: Gradient intuition and convergence curve
 
-The gradient has a beautiful interpretation. It is simply the sum of
-*residuals* — observed minus predicted. If a model performs better than
-expected, the residuals are positive, and we increase its ability. If worse,
-we decrease it.
-
-[beat]
-
-This is gradient ascent. At each step, we nudge the parameters in the
-direction that most improves the likelihood. After a few hundred iterations,
-the estimates converge.
+The gradient has an elegant interpretation: it is the sum of residuals —
+observed minus predicted. Gradient ascent nudges the parameters toward
+higher likelihood until the estimates converge.
 
 > Cue: Parameter recovery scatter plots
 
-And when we compare the estimated parameters to the true values — on
-synthetic data where we know ground truth — the recovery is remarkably
-good. Correlations above 0.98 are typical for well-behaved datasets.
+When we compare estimates to true values on synthetic data, the recovery
+is remarkably good — correlations above 0.98 are typical.
 
 [pause]
 
-Maximum likelihood estimation is the foundation. But it comes with a
-subtle trap.
+Maximum likelihood is the foundation. But it comes with a subtle trap.
 
 ---
 
@@ -138,41 +126,28 @@ your optimizer will wander forever without converging.
 > [ANIMATION: em_algorithm.py — EMAlgorithm]
 > Cue: E-step / M-step cycle diagram
 
-When we treat person abilities as *latent variables* rather than fixed
-parameters, we need a different approach. The EM algorithm — Expectation-
-Maximization — is the standard tool.
-
-It alternates between two steps in a cycle that is guaranteed to improve
-the likelihood at every iteration.
+When abilities are *latent variables*, we need a different approach.
+The EM algorithm — Expectation-Maximization — alternates between two
+steps, guaranteed to improve the likelihood each iteration.
 
 > Cue: E-step — posterior over abilities
 
-In the E-step, we compute the posterior distribution over each model's
-ability, given its responses and the current item parameters. We start
-with a prior — a standard normal — and the data shift and sharpen it
-into a posterior.
-
-[beat]
-
-The posterior tells us what we believe about this model's ability, given
-everything we know so far.
+In the E-step, we compute the posterior over each model's ability.
+A prior — a standard normal — gets shifted and sharpened by the data.
 
 > Cue: M-step — bar chart adjustment
 
-In the M-step, we update the item parameters so that the *expected* number
-of correct responses matches the *observed* number. Each item difficulty
-adjusts to close the gap between prediction and reality.
+In the M-step, we update item parameters so expected correct responses
+match observed ones. Each difficulty adjusts to close the gap.
 
 > Cue: Iteration counter and convergence
 
-Then we repeat. Each cycle is guaranteed to increase the marginal
-likelihood. After ten or twenty iterations, the algorithm converges.
+Then we repeat. After ten or twenty iterations, the algorithm converges.
 
 [pause]
 
-The EM algorithm is the workhorse behind most IRT software. It is slower
-than direct gradient methods, but it handles latent variables naturally
-and is very stable.
+The EM algorithm is the workhorse behind most IRT software — stable
+and natural for latent variable models.
 
 ---
 
@@ -185,37 +160,26 @@ and is very stable.
 > [ANIMATION: bayesian_inference.py — BayesianInference]
 > Cue: Prior bell curve
 
-The Bayesian approach adds one more ingredient: a *prior distribution*
-that encodes what we believe about the parameters before seeing any data.
-
-For abilities, the standard choice is a normal distribution centered at
-zero. This says: most models are roughly average, with a few unusually
-strong or weak.
+The Bayesian approach adds a *prior* — what we believe before seeing data.
+A standard normal says most models are roughly average.
 
 > Cue: Likelihood curve appears
 
-The likelihood tells us what the data say. Its peak — the MLE — is
-the data's best guess for the parameter.
+The likelihood is what the data say. Its peak is the MLE.
 
 > Cue: Posterior curve with MAP and MLE marked
 
-The posterior is the product: prior times likelihood. Its peak — the
-MAP estimate — is a compromise between the prior and the data.
-
-Notice: the MAP is pulled toward zero compared to the MLE. This is
-*Bayesian shrinkage*. The prior acts as a regularizer, pulling extreme
-estimates back toward the center.
+The posterior is prior times likelihood. Its peak — the MAP — compromises
+between prior and data, pulled toward zero. This is *Bayesian shrinkage*.
 
 > Cue: Extreme case — perfect score, MLE diverges
 
-And here is where it really matters. When a model answers every question
-correctly, the MLE goes to *infinity*. But the MAP stays finite. The
-prior prevents absurd estimates.
+When a model answers everything correctly, the MLE diverges to infinity.
+The MAP stays finite — the prior prevents absurd estimates.
 
 [beat]
 
-For AI benchmarks where some models achieve near-perfect scores on easy
-subsets, this regularization is not just elegant — it is essential.
+For AI benchmarks with near-perfect scores, this is essential.
 
 ---
 
@@ -228,43 +192,33 @@ subsets, this regularization is not just elegant — it is essential.
 > [ANIMATION: cat_simulation.py — CATSimulation]
 > Cue: Fisher information curves
 
-Everything we have discussed so far is *passive learning* — we have a
-fixed dataset and estimate parameters from it. But what if we could
-*choose* which questions to ask?
+Everything so far has been *passive learning* — estimating from a fixed
+dataset. But what if we could *choose* which questions to ask?
 
-This is Computerized Adaptive Testing. The key insight: not all questions
-are equally informative for all test-takers.
+This is Computerized Adaptive Testing.
 
 [beat]
 
-Fisher information quantifies this. Each item has an information curve
-that peaks where the item difficulty matches the ability. The most
-informative item is always the one closest in difficulty to the current
-ability estimate.
-
-A genius gains nothing from a trivial question. A beginner gains nothing
-from an impossible one.
+Fisher information tells us how much we learn from each item. It peaks
+where item difficulty matches ability. A genius learns nothing from a
+trivial question; a beginner learns nothing from an impossible one.
 
 > Cue: CAT step-by-step simulation
 
-So CAT works like this. Start with a prior estimate — say, average
-ability. Select the most informative item. Observe the response. Update
-the estimate. Repeat.
+CAT works like this: start with an average estimate, select the most
+informative item, observe the response, update, and repeat.
 
-Watch the confidence interval shrink with each well-chosen question. The
-estimate zeroes in on the true ability rapidly.
+Watch the confidence interval shrink with each well-chosen question.
 
 > Cue: CAT vs random comparison chart
 
-Compared to random item selection, CAT is dramatically more efficient.
-The same measurement precision is achieved with roughly *half* as many
-questions.
+Compared to random selection, CAT achieves the same precision with
+roughly *half* as many questions.
 
 [pause]
 
-For AI evaluation, where each benchmark question costs an API call, this
-is not just elegant — it is practical. CAT lets us evaluate models
-faster, cheaper, and with less risk of benchmark contamination.
+For AI evaluation, where each question costs an API call, adaptive
+testing means faster, cheaper evaluation with less contamination risk.
 
 ---
 
