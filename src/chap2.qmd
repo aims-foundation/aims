@@ -52,12 +52,12 @@ By the end of this chapter, you will be able to:
 6. **Describe** Bayesian inference for IRT models and specify appropriate priors for ability and item parameters.
 7. **Implement** MAP estimation and MCMC sampling for IRT models.
 8. **Explain** regularization in IRT as a Bayesian prior and apply cross-validation for hyperparameter selection.
-9. **Design** a Computerized Adaptive Testing (CAT) procedure using Fisher information for item selection.
-10. **Apply** MLE, Bayesian, and CAT methods to real AI benchmark data and compare their efficiency.
+9. **Apply** MLE and Bayesian methods to real AI benchmark data and compare their efficiency.
+10. **Evaluate** the generalization of learned factor models under various masking schemes (entry-wise, row holdout, column holdout).
 :::
 
 ::: {.callout-tip title="Suggested Lecture Plan" collapse="true"}
-This chapter can be covered in **3-4 lectures** (75-90 minutes each):
+This chapter can be covered in **3 lectures** (75-90 minutes each):
 
 **Lecture 1: Foundations of Estimation**
 
@@ -72,19 +72,12 @@ This chapter can be covered in **3-4 lectures** (75-90 minutes each):
 - EM algorithm for IRT (30 min)
 - Hands-on: EM implementation (25 min)
 
-**Lecture 3: Bayesian Approaches**
+**Lecture 3: Bayesian Approaches and Generalization**
 
 - Prior specification for IRT (15 min)
-- MAP estimation (20 min)
-- MCMC for IRT (30 min)
-- Regularization as Bayesian prior (10 min)
-
-**Lecture 4: Active Learning**
-
-- CAT framework and Fisher information (25 min)
-- D-optimality and item selection (20 min)
-- Stopping rules and efficiency (15 min)
-- Hands-on: CAT simulation (15 min)
+- MAP estimation and MCMC (30 min)
+- Regularization and cross-validation (15 min)
+- Generalization experiments and masking schemes (15 min)
 :::
 
 ::: {.callout-note title="Notation"}
@@ -94,8 +87,6 @@ Building on Chapter 1, we use the following additional notation:
 |--------|---------|--------|
 | $\ell(\theta, \beta)$ | Log-likelihood function | $\mathbb{R}$ |
 | $\nabla_\theta \ell$ | Gradient w.r.t. ability parameters | $\mathbb{R}^N$ |
-| $\mathcal{I}(\theta)$ | Fisher information matrix | $\mathbb{R}^{N \times N}$ |
-| $I_j(\theta)$ | Fisher information for item $j$ | $\mathbb{R}^+$ |
 | $\pi(\theta)$ | Prior distribution over abilities | - |
 | $\pi(\beta)$ | Prior distribution over difficulties | - |
 | $\hat{\theta}_{\text{MLE}}$ | Maximum likelihood estimate | $\mathbb{R}^N$ |
@@ -104,7 +95,7 @@ Building on Chapter 1, we use the following additional notation:
 :::
 
 ::: {.callout-tip title="Video Overview" collapse="false"}
-A visual tour of the key concepts in this chapter — from maximum likelihood estimation and the EM algorithm to Bayesian inference and computerized adaptive testing.
+A visual tour of the key concepts in this chapter — from maximum likelihood estimation and the EM algorithm to Bayesian inference and generalization.
 
 {{< video ../animations/ch2/chapter2_narrated.mp4 >}}
 :::
@@ -129,15 +120,11 @@ Parameter estimation serves several critical purposes in AI measurement:
 
 2. **Uncertainty quantification:** Estimation procedures provide not just point estimates but standard errors, telling us how confident we should be in our measurements.
 
-3. **Adaptive testing:** Once we have calibrated item parameters, we can select the most informative questions for each model, dramatically reducing evaluation costs.
+3. **Adaptive testing:** Once we have calibrated item parameters, we can select the most informative questions for each model, dramatically reducing evaluation costs (see Chapter 3 for a full treatment of Computerized Adaptive Testing).
 
 4. **Prediction:** With learned parameters, we can predict how a model will perform on questions it has never seen, enabling efficient evaluation of new benchmarks.
 
-This chapter covers two complementary paradigms for learning these parameters:
-
-- **Passive learning:** Given a fixed dataset, estimate all parameters simultaneously. This includes maximum likelihood estimation (MLE), expectation-maximization (EM), and Bayesian inference.
-
-- **Active learning:** Sequentially select which questions to administer based on current estimates, updating parameters after each response. Computerized Adaptive Testing (CAT) is the primary example.
+This chapter focuses on **passive learning**: given a fixed dataset, estimate all parameters simultaneously. This includes maximum likelihood estimation (MLE), expectation-maximization (EM), and Bayesian inference. We also introduce generalization experiments that evaluate how well learned models transfer to unseen data. The design of *which* items to include in a benchmark, including active item selection, is the subject of Chapter 3.
 
 
 ## Maximum Likelihood Estimation {#sec-mle}
@@ -1129,370 +1116,6 @@ print(f"\nBest regularization: lambda = {best_lambda}")
 ```
 
 
-## Active Learning: Computerized Adaptive Testing {#sec-cat}
-
-So far we have discussed *passive learning*: given a fixed dataset, estimate all parameters. But in many AI evaluation scenarios, we can choose which questions to ask. This is *active learning*, and Computerized Adaptive Testing (CAT) is its primary instantiation in psychometrics.
-
-### The CAT Framework {#sec-cat-framework}
-
-The key insight of CAT is that not all questions are equally informative for all test-takers. A very easy question provides little information about a high-ability model---we already know it will likely answer correctly. Similarly, a very hard question provides little information about a low-ability model.
-
-The most informative questions are those where the model has roughly a 50% chance of success. CAT iteratively:
-
-1. **Select** the most informative question given current ability estimate
-2. **Administer** the question and observe the response
-3. **Update** the ability estimate based on the response
-4. **Check** if stopping criterion is met; if not, return to step 1
-
-::: {.callout-important title="Why Fisher Information?"}
-Fisher information measures how much a response to item $j$ tells us about $\theta$:
-
-- **High information**: The item is well-matched to the ability level
-- **Low information**: The item is too easy or too hard
-
-Intuitively, asking a genius to solve $1+1$ or a beginner to prove the Riemann hypothesis provides little information. The most informative items are those where the model has about 50% chance of success.
-:::
-
-### Fisher Information for Item Selection {#sec-fisher}
-
-The Fisher information for item $j$ at ability $\theta$ in the Rasch model is:
-
-$$
-I_j(\theta) = P_j(\theta) \cdot (1 - P_j(\theta))
-$$ {#eq-fisher-info}
-
-where $P_j(\theta) = \sigma(\theta - \beta_j)$.
-
-This is maximized when $P_j(\theta) = 0.5$, which occurs when $\theta = \beta_j$. Thus, the optimal item to administer is the one whose difficulty most closely matches the current ability estimate.
-
-```{pyodide-python}
-#| label: fisher-information
-#| autorun: true
-#| fig-cap: "Fisher information as a function of ability for items of different difficulties."
-
-# Plot Fisher information curves
-theta_range = np.linspace(-4, 4, 200)
-
-fig, axes = plt.subplots(1, 2, figsize=(6, 2))
-
-# Information curves for different item difficulties
-difficulties = [-2, -1, 0, 1, 2]
-colors = plt.cm.viridis(np.linspace(0, 1, len(difficulties)))
-
-for beta_j, color in zip(difficulties, colors):
-    P = sigmoid(theta_range - beta_j)
-    info = P * (1 - P)
-    axes[0].plot(theta_range, info, color=color, linewidth=2,
-                 label=f'$\\beta_j = {beta_j}$')
-
-axes[0].set_xlabel('Ability ($\\theta$)')
-axes[0].set_ylabel('Fisher Information')
-axes[0].set_title('Item Information Curves')
-axes[0].legend()
-axes[0].grid(True, alpha=0.3)
-axes[0].axvline(0, color='gray', linestyle=':', alpha=0.5)
-
-# Cumulative information from multiple items
-theta_test = 0.5  # Example ability
-n_items = 20
-
-# Adaptive selection: choose items closest to current estimate
-beta_available = beta_true.copy()
-adaptive_info = [0]
-theta_estimate = 0  # Start with prior mean
-
-for t in range(n_items):
-    # Select item with difficulty closest to current estimate
-    distances = np.abs(beta_available - theta_estimate)
-    best_idx = np.argmin(distances)
-    beta_selected = beta_available[best_idx]
-
-    # Information from this item
-    P = sigmoid(theta_test - beta_selected)
-    info = P * (1 - P)
-    adaptive_info.append(adaptive_info[-1] + info)
-
-    # Remove selected item
-    beta_available = np.delete(beta_available, best_idx)
-
-    # Update estimate (simplified: use true ability for demo)
-    theta_estimate = theta_test  # In practice, we'd use MAP update
-
-# Random selection
-np.random.seed(42)
-random_order = np.random.permutation(len(beta_true))[:n_items]
-random_info = [0]
-for j in random_order:
-    P = sigmoid(theta_test - beta_true[j])
-    info = P * (1 - P)
-    random_info.append(random_info[-1] + info)
-
-axes[1].plot(range(n_items + 1), adaptive_info, 'g-', linewidth=2, label='Adaptive')
-axes[1].plot(range(n_items + 1), random_info, 'b-', linewidth=2, label='Random')
-axes[1].set_xlabel('Number of Items')
-axes[1].set_ylabel('Cumulative Fisher Information')
-axes[1].set_title(f'Information Accumulation ($\\theta = {theta_test}$)')
-axes[1].legend()
-axes[1].grid(True, alpha=0.3)
-
-plt.tight_layout()
-plt.show()
-```
-
-### CAT Implementation {#sec-cat-implementation}
-
-Let us implement a complete CAT procedure:
-
-```{pyodide-python}
-#| label: cat-simulation
-#| autorun: true
-#| fig-cap: "CAT efficiency compared to random item selection for reaching target reliability."
-
-def cat_simulation(theta_true_i, beta, n_items_max=30, reliability_threshold=0.95):
-    """
-    Simulate CAT for a single test-taker.
-
-    Parameters
-    ----------
-    theta_true_i : float
-        True ability of the test-taker
-    beta : ndarray
-        Item difficulties (pre-calibrated)
-    n_items_max : int
-        Maximum number of items to administer
-    reliability_threshold : float
-        Stop when reliability exceeds this threshold
-
-    Returns
-    -------
-    dict with results
-    """
-    M = len(beta)
-
-    # Track administered items and responses
-    administered = []
-    responses = []
-
-    # Prior: theta ~ N(0, 1)
-    theta_hat = 0.0
-    prior_var = 1.0
-
-    theta_history = [theta_hat]
-    reliability_history = [0.0]
-    se_history = [1.0]
-
-    available_items = list(range(M))
-
-    for t in range(min(n_items_max, M)):
-        # Select item with maximum Fisher information at current estimate
-        best_item = None
-        best_info = -np.inf
-
-        for j in available_items:
-            P_j = sigmoid(theta_hat - beta[j])
-            info_j = P_j * (1 - P_j)
-            if info_j > best_info:
-                best_info = info_j
-                best_item = j
-
-        # Administer item (simulate response)
-        P_true = sigmoid(theta_true_i - beta[best_item])
-        response = int(np.random.random() < P_true)
-
-        administered.append(best_item)
-        responses.append(response)
-        available_items.remove(best_item)
-
-        # Update ability estimate using MAP (Newton-Raphson)
-        for _ in range(10):
-            P_vec = sigmoid(theta_hat - np.array([beta[j] for j in administered]))
-
-            # Gradient: sum of residuals minus prior contribution
-            grad = np.sum(np.array(responses) - P_vec) - theta_hat / prior_var
-
-            # Hessian: negative sum of P(1-P) minus prior contribution
-            hess = -np.sum(P_vec * (1 - P_vec)) - 1 / prior_var
-
-            if abs(hess) > 1e-10:
-                theta_hat = theta_hat - grad / hess
-
-        # Compute posterior variance (inverse of observed information + prior precision)
-        total_info = np.sum([sigmoid(theta_hat - beta[j]) * (1 - sigmoid(theta_hat - beta[j]))
-                           for j in administered])
-        posterior_var = 1 / (1/prior_var + total_info)
-        se = np.sqrt(posterior_var)
-
-        # Reliability: proportion of variance explained
-        # R = 1 - error_var / total_var, where total_var = 1 (prior)
-        reliability = 1 - posterior_var / prior_var
-
-        theta_history.append(theta_hat)
-        reliability_history.append(reliability)
-        se_history.append(se)
-
-        # Check stopping criterion
-        if reliability >= reliability_threshold:
-            break
-
-    return {
-        'theta_hat': theta_hat,
-        'theta_true': theta_true_i,
-        'n_items': len(administered),
-        'administered': administered,
-        'responses': responses,
-        'reliability_history': reliability_history,
-        'theta_history': theta_history,
-        'se_history': se_history,
-        'final_reliability': reliability_history[-1],
-        'final_se': se_history[-1]
-    }
-
-def random_selection_simulation(theta_true_i, beta, n_items_max=30, reliability_threshold=0.95):
-    """
-    Simulate random item selection for comparison.
-    """
-    M = len(beta)
-
-    # Random order
-    item_order = list(np.random.permutation(M)[:n_items_max])
-
-    theta_hat = 0.0
-    prior_var = 1.0
-
-    administered = []
-    responses = []
-    reliability_history = [0.0]
-    theta_history = [theta_hat]
-
-    for j in item_order:
-        # Simulate response
-        P_true = sigmoid(theta_true_i - beta[j])
-        response = int(np.random.random() < P_true)
-
-        administered.append(j)
-        responses.append(response)
-
-        # Update ability estimate
-        for _ in range(10):
-            P_vec = sigmoid(theta_hat - np.array([beta[k] for k in administered]))
-            grad = np.sum(np.array(responses) - P_vec) - theta_hat / prior_var
-            hess = -np.sum(P_vec * (1 - P_vec)) - 1 / prior_var
-            if abs(hess) > 1e-10:
-                theta_hat = theta_hat - grad / hess
-
-        # Posterior variance and reliability
-        total_info = np.sum([sigmoid(theta_hat - beta[k]) * (1 - sigmoid(theta_hat - beta[k]))
-                           for k in administered])
-        posterior_var = 1 / (1/prior_var + total_info)
-        reliability = 1 - posterior_var / prior_var
-
-        reliability_history.append(reliability)
-        theta_history.append(theta_hat)
-
-        if reliability >= reliability_threshold:
-            break
-
-    return {
-        'n_items': len(administered),
-        'reliability_history': reliability_history,
-        'theta_history': theta_history,
-        'theta_hat': theta_hat,
-        'final_reliability': reliability_history[-1]
-    }
-
-# Run simulations for multiple test-takers
-np.random.seed(42)
-n_test_takers = 100
-theta_test_sample = np.random.normal(0, 1, n_test_takers)
-
-cat_results = []
-random_results = []
-
-for theta_i in theta_test_sample:
-    cat_results.append(cat_simulation(theta_i, beta_true))
-    random_results.append(random_selection_simulation(theta_i, beta_true))
-
-cat_items = [r['n_items'] for r in cat_results]
-random_items = [r['n_items'] for r in random_results]
-
-# Plot comparison
-fig, axes = plt.subplots(1, 3, figsize=(6, 2))
-
-# Bar chart: average items needed
-methods = ['Random', 'CAT']
-means = [np.mean(random_items), np.mean(cat_items)]
-stds = [np.std(random_items), np.std(cat_items)]
-
-bars = axes[0].bar(methods, means, yerr=stds, capsize=5, alpha=0.7,
-                   color=['#1f77b4', '#2ca02c'])
-axes[0].set_ylabel('Items to reach 95% reliability')
-axes[0].set_title('Efficiency: CAT vs Random')
-axes[0].grid(True, alpha=0.3, axis='y')
-
-# Add values on bars
-for bar, mean, std in zip(bars, means, stds):
-    axes[0].text(bar.get_x() + bar.get_width()/2, bar.get_height() + std + 0.5,
-                f'{mean:.1f}', ha='center', va='bottom', fontsize=11)
-
-# Reliability trajectories for a single example
-example_idx = 50
-example_cat = cat_results[example_idx]
-example_random = random_results[example_idx]
-
-axes[1].plot(example_random['reliability_history'], 'b-', linewidth=2, label='Random')
-axes[1].plot(example_cat['reliability_history'], 'g-', linewidth=2, label='CAT')
-axes[1].axhline(0.95, color='r', linestyle='--', linewidth=1.5, label='Threshold (0.95)')
-axes[1].set_xlabel('Number of items administered')
-axes[1].set_ylabel('Reliability')
-axes[1].set_title(f'Reliability Growth (example: $\\theta$ = {theta_test_sample[example_idx]:.2f})')
-axes[1].legend()
-axes[1].grid(True, alpha=0.3)
-
-# Histogram of items needed
-axes[2].hist(random_items, bins=15, alpha=0.6, label='Random', color='#1f77b4')
-axes[2].hist(cat_items, bins=15, alpha=0.6, label='CAT', color='#2ca02c')
-axes[2].set_xlabel('Number of items')
-axes[2].set_ylabel('Frequency')
-axes[2].set_title('Distribution of Test Lengths')
-axes[2].legend()
-axes[2].grid(True, alpha=0.3)
-
-plt.tight_layout()
-plt.show()
-
-# Summary statistics
-efficiency_gain = (np.mean(random_items) - np.mean(cat_items)) / np.mean(random_items) * 100
-
-print(f"\nSummary:")
-print(f"  Random selection: {np.mean(random_items):.1f} +/- {np.std(random_items):.1f} items")
-print(f"  CAT: {np.mean(cat_items):.1f} +/- {np.std(cat_items):.1f} items")
-print(f"  Efficiency gain: {efficiency_gain:.1f}% fewer items with CAT")
-```
-
-### Stopping Rules {#sec-stopping}
-
-CAT can use various stopping criteria:
-
-1. **Reliability threshold:** Stop when measurement precision reaches a target (e.g., $R \geq 0.95$)
-2. **Standard error threshold:** Stop when $SE(\hat{\theta}) \leq 0.3$
-3. **Fixed length:** Administer exactly $K$ items
-4. **Information threshold:** Stop when additional items would provide negligible information
-
-For AI evaluation, practical constraints also matter:
-
-- **Cost:** Each API call has a cost
-- **Time:** Evaluation must complete within a deadline
-- **Contamination:** Administering too many items risks benchmark leakage
-
-::: {.callout-note title="CAT for AI Evaluation"}
-Traditional CAT assumes deterministic responses: a human test-taker gives the same answer if asked the same question twice. AI models may or may not be deterministic depending on temperature and sampling settings.
-
-For deterministic evaluation (temperature=0), CAT works directly. For stochastic evaluation, we may need multiple samples per item, or methods that account for response variability.
-
-CAT also requires pre-calibrated item parameters. In a cold-start scenario (new benchmark), we must first collect data on a pilot sample of models before CAT can be deployed.
-:::
-
-
 ## Generalization Experiments {#sec-generalization}
 
 To evaluate the robustness and transferability of learned factor models, we train and test them under various **masking schemes**, each representing a different notion of generalization. These masks determine which parts of the response matrix $Y$ are visible during training and which are held out for evaluation.
@@ -1655,7 +1278,7 @@ The factor model typically achieves AUC of 92-97% on random masking across bench
 
 2. **Bayesian vs Frequentist:** When is Bayesian inference preferred over MLE for AI benchmark analysis? Consider scenarios with limited data, extreme scores, or the need for uncertainty quantification.
 
-3. **Adaptive Testing for AI:** Current AI benchmarks test all models on all questions. What are the practical challenges in implementing CAT for AI evaluation? Consider: determinism of model responses, cost of API calls, benchmark contamination.
+3. **From Learning to Design:** This chapter focuses on estimating parameters from a fixed dataset. Chapter 3 considers how to *design* the evaluation---choosing which items to include, how to allocate testing effort, and how to ensure robustness. What aspects of the estimation methods learned here would inform good benchmark design?
 
 4. **Transfer of Item Parameters:** If we calibrate item difficulties on one set of models (e.g., 2023 models), can we use these parameters to evaluate 2024 models? What assumptions does this require, and when might they fail?
 
@@ -1679,10 +1302,6 @@ The general EM algorithm was formalized by @dempster1977maximum. Its application
 ### Bayesian IRT
 
 Bayesian approaches to IRT were pioneered by @swaminathan1982bayesian and advanced using Gibbs sampling by @albert1992bayesian. Modern references include @fox2010bayesian and the software documentation for Stan [@carpenter2017stan].
-
-### Computerized Adaptive Testing
-
-CAT has a rich history beginning with @lord1970some. The Fisher information criterion for item selection was developed by @birnbaum1968some. For multidimensional CAT, see @segall1996multidimensional and @van1999multidimensional. Applications to AI evaluation are emerging; see @polo2024tinybenchmarks for recent work.
 
 ### Optimization Methods
 
@@ -1713,12 +1332,12 @@ L-BFGS is described in @nocedal2006numerical. For deep learning optimizers appli
 
 Compare the posterior estimates to those from Metropolis-Hastings.
 
-**Exercise 2.8** ($\star\star\star$): Extend the CAT simulation to handle a multidimensional factor model with $K=2$ dimensions. Implement D-optimal item selection using $j^* = \arg\max_j \det(\sum_\tau I_j^{(\tau)})$.
+**Exercise 2.8** ($\star\star\star$): Implement marginal MLE using numerical quadrature to integrate out the ability parameters. Compare convergence and parameter recovery to the EM approach from this chapter.
 
 ### Discussion Exercises
 
 **Exercise 2.9:** Compare the convergence of gradient descent, L-BFGS, and Adam on a Rasch model estimation problem. Which converges fastest? Which is most robust to different initializations?
 
-**Exercise 2.10:** Design a stopping rule for CAT that balances measurement precision with evaluation cost. How would you adapt this for AI evaluation where API calls have monetary costs?
+**Exercise 2.10:** Investigate the sensitivity of MLE and Bayesian estimation to model misspecification. Generate data from a 2PL model but fit a Rasch model. How do the estimated abilities compare? When does the misspecification matter most?
 
-**Exercise 2.11:** Investigate the sensitivity of CAT to misspecification of item parameters. If the calibration sample differs systematically from the test population, how does CAT performance degrade? Simulate this scenario and quantify the effect.
+**Exercise 2.11:** Implement a cross-validation procedure for selecting between the Rasch, 2PL, and factor models. Apply it to benchmark data with different numbers of items and models. When does the additional complexity of the 2PL or factor model improve out-of-sample prediction?
